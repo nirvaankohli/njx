@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { BadgeCheck, Download, FileText, Loader2, ShieldCheck, Upload } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   api,
   type AiTag,
@@ -55,6 +56,7 @@ type SignedDocumentSummary = {
 };
 
 export default function DocumentsPage() {
+  const reducedMotion = useReducedMotion() ?? false;
   const session = getDocShieldSession();
   const [docs, setDocs] = useState<LocalDocument[]>(
     mockDocuments.map((doc) => ({
@@ -263,149 +265,172 @@ export default function DocumentsPage() {
       </header>
 
       <div className="space-y-6">
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden border-border/80 bg-gradient-to-b from-background to-muted/20 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.7)]">
           <CardHeader>
             <CardTitle className="text-base">Upload</CardTitle>
             <CardDescription>Drop a file or choose one from your device.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="space-y-5">
-                <label
-                  htmlFor="doc-upload"
-                  className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
-                >
-                  <Upload className="h-10 w-10 text-primary" />
-                  <div className="mt-4 max-w-md space-y-2">
-                    <div className="text-lg font-medium">Upload a file to be encrypted or signed</div>
-                    <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
-                  </div>
-                </label>
-                <Input
-                  id="doc-upload"
-                  type="file"
-                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  className="hidden"
-                  onChange={handleFileChange}
-                  disabled={busy}
-                />
+          <CardContent className="space-y-0">
+            <div className="space-y-5">
+              <label
+                htmlFor="doc-upload"
+                className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
+              >
+                <Upload className="h-10 w-10 text-primary" />
+                <div className="mt-4 max-w-md space-y-2">
+                  <div className="text-lg font-medium">Upload a file to be encrypted or signed</div>
+                  <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
+                </div>
+              </label>
+              <Input
+                id="doc-upload"
+                type="file"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={busy}
+              />
 
-                {selectedFile && (
-                  <div className="rounded-2xl border border-border bg-background/70 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
-                        <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
-                        </div>
+              {selectedFile && (
+                <div className="rounded-2xl border border-border bg-background/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
+                      <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
                       </div>
-                      <Badge variant="outline" className="gap-1">
-                        <FileText className="h-3.5 w-3.5" />
-                        Ready
+                    </div>
+                    <Badge variant="outline" className="gap-1">
+                      <FileText className="h-3.5 w-3.5" />
+                      Ready
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <AnimatePresence initial={false}>
+              {selectedFile ? (
+                <motion.div
+                  key="access-panel"
+                  initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -18, height: 0 }}
+                  animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, height: "auto" }}
+                  exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10, height: 0 }}
+                  transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+                  className="mt-6 overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
+                >
+                  <div className="border-b border-border/60 bg-background/60 px-5 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Access roles</div>
+                        <div className="mt-1 text-base font-medium">Set who can open it</div>
+                      </div>
+                      <Badge variant="secondary" className="gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Open
                       </Badge>
                     </div>
                   </div>
-                )}
-              </div>
 
-              <aside className={`rounded-3xl border border-border bg-muted/20 p-4 ${selectedFile ? "" : "opacity-70"}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Access roles</div>
-                    <div className="mt-1 text-base font-medium">Keep this simple</div>
-                  </div>
-                  <Badge variant="secondary" className="gap-1">
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    {selectedFile ? "Open" : "Locked"}
-                  </Badge>
-                </div>
+                  <div className="grid gap-0 lg:grid-cols-[1fr_1px_0.92fr]">
+                    <div className="space-y-4 px-5 py-5">
+                      <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
+                      <PolicyRow label="Anyone with link" value={anyoneWithLink} onChange={handleAnyoneWithLinkChange} />
 
-                {selectedFile ? (
-                  <div className="mt-4 space-y-4">
-                    <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
-                    <PolicyRow label="Anyone with link" value={anyoneWithLink} onChange={handleAnyoneWithLinkChange} />
-
-                    {!anyoneWithLink && (
-                      <div className="space-y-3">
-                        <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Private access</div>
-                        <div className="grid gap-2">
-                          <AccessChoice
-                            label="Password"
-                            description="People enter a password to open the file."
-                            active={accessMethod === "password"}
-                            onClick={() => setAccessMethod("password")}
-                          />
-                          <AccessChoice
-                            label="Organization sign-in"
-                            description="Only users signed into the organization can open it."
-                            active={accessMethod === "organization"}
-                            onClick={() => setAccessMethod("organization")}
-                          />
+                      <div>
+                        <div className="mb-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">Embedded AI tags</div>
+                        <div className="flex flex-wrap gap-3">
+                          {ALL_TAGS.map((tag) => (
+                            <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                              <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
+                              <span className="font-mono text-xs">{tag}</span>
+                            </label>
+                          ))}
                         </div>
-
-                        {accessMethod === "password" ? (
-                          <div className="space-y-3 pt-1">
-                            <div className="space-y-2">
-                              <Label>Access password</Label>
-                              <Input
-                                type="password"
-                                value={accessPassword}
-                                onChange={(e) => setAccessPassword(e.target.value)}
-                                placeholder="Create a password"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Confirm password</Label>
-                              <Input
-                                type="password"
-                                value={accessPasswordConfirm}
-                                onChange={(e) => setAccessPasswordConfirm(e.target.value)}
-                                placeholder="Repeat the password"
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
-                            Organization access uses the signed-in company account. Private link settings stay off.
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {anyoneWithLink && (
-                      <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
-                        Anyone with the link can open it, and private access settings stay off.
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="mb-3 text-sm font-medium">Embedded AI tags</div>
-                      <div className="flex flex-wrap gap-3">
-                        {ALL_TAGS.map((tag) => (
-                          <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                            <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
-                            <span className="font-mono text-xs">{tag}</span>
-                          </label>
-                        ))}
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-xs text-muted-foreground">Configure access, then sign the file.</p>
-                      <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
-                        {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                        Sign file
-                      </Button>
+                    <div className="hidden bg-border/70 lg:block" />
+
+                    <div className="space-y-4 px-5 py-5">
+                      {!anyoneWithLink ? (
+                        <motion.div
+                          key="private-access"
+                          initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                          animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-3"
+                        >
+                          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Private access</div>
+                          <div className="grid gap-2">
+                            <AccessChoice
+                              label="Password"
+                              description="People enter a password to open the file."
+                              active={accessMethod === "password"}
+                              onClick={() => setAccessMethod("password")}
+                            />
+                            <AccessChoice
+                              label="Organization sign-in"
+                              description="Only users signed into the organization can open it."
+                              active={accessMethod === "organization"}
+                              onClick={() => setAccessMethod("organization")}
+                            />
+                          </div>
+
+                          {accessMethod === "password" ? (
+                            <div className="space-y-3 pt-1">
+                              <div className="space-y-2">
+                                <Label>Access password</Label>
+                                <Input
+                                  type="password"
+                                  value={accessPassword}
+                                  onChange={(e) => setAccessPassword(e.target.value)}
+                                  placeholder="Create a password"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Confirm password</Label>
+                                <Input
+                                  type="password"
+                                  value={accessPasswordConfirm}
+                                  onChange={(e) => setAccessPasswordConfirm(e.target.value)}
+                                  placeholder="Repeat the password"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+                              Organization access uses the signed-in company account. Private link settings stay off.
+                            </div>
+                          )}
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="public-access"
+                          initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                          animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                          className="rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground"
+                        >
+                          Anyone with the link can open it, and private access settings stay off.
+                        </motion.div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                        <p className="text-xs text-muted-foreground">Configure access, then sign the file.</p>
+                        <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
+                          {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                          Sign file
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-dashed border-border bg-background/50 p-4 text-sm text-muted-foreground">
-                    Upload a file to open the access settings.
-                  </div>
-                )}
-              </aside>
-            </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </CardContent>
         </Card>
 
