@@ -251,6 +251,5 @@ def _persist_verification(session: Session, document: DocumentORM, result: Verif
         document_id=document.document_id,
         details={"status": result.status, "reasons": result.reasons},
     )
-    session.flush()
+    session.commit()
     return result
-

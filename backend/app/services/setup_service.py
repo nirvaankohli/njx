@@ -73,11 +73,10 @@ def setup_tenant(session: Session, request: TenantSetupRequest) -> SetupResponse
             "public_keys": len(request.public_keys),
         },
     )
-    session.flush()
+    session.commit()
     return SetupResponse(
         tenant_id=request.tenant.tenant_id,
         status=tenant.status,
         registered_policy_templates=len(request.policy_templates),
         registered_public_keys=len(request.public_keys),
     )
-

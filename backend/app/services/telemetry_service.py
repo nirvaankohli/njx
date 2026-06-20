@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.db import AccessEventORM, DocumentORM
+from app.models.db import AccessEventORM, DocumentORM, PublicKeyORM
 from app.models.dto import AccessEvent, AccessEventResponse, ActivityItem, AlertItem, DashboardResponse, RevocationSummary, VerificationSummary
 from app.services.audit_service import log_action
 from app.services.errors import NotFoundError
@@ -16,7 +14,6 @@ def record_access_event(session: Session, event: AccessEvent) -> AccessEventResp
     document = session.get(DocumentORM, event.document_id)
     if document is None:
         raise NotFoundError(f"Document {event.document_id} not found")
-    score, reasons = compute_risk_signals(session, event.tenant_id, event.document_id)
     access_event = AccessEventORM(
         event_id=event.event_id,
         tenant_id=event.tenant_id,
@@ -29,10 +26,14 @@ def record_access_event(session: Session, event: AccessEvent) -> AccessEventResp
         country=event.country,
         result=event.result,
         reason=event.reason,
-        risk_score=score,
-        risk_reasons=reasons,
+        risk_score=0,
+        risk_reasons=[],
     )
     session.add(access_event)
+    session.flush()
+    score, reasons = compute_risk_signals(session, event.tenant_id, event.document_id)
+    access_event.risk_score = score
+    access_event.risk_reasons = reasons
     log_action(
         session,
         action="access_event",
@@ -40,7 +41,7 @@ def record_access_event(session: Session, event: AccessEvent) -> AccessEventResp
         document_id=event.document_id,
         details={"event_id": event.event_id, "risk_score": score, "reasons": reasons},
     )
-    session.flush()
+    session.commit()
     return AccessEventResponse(accepted=True, event_id=event.event_id, risk_recomputed=True)
 
 
@@ -59,7 +60,6 @@ def build_dashboard(session: Session, tenant_id: str, document_id: str | None = 
     access_events = session.scalars(access_query).all()
 
     alerts: list[AlertItem] = []
-    seen_alert_documents: set[str] = set()
     for doc in documents:
         score, reasons = compute_risk_signals(session, tenant_id, doc.document_id)
         if score >= 50:
@@ -71,7 +71,6 @@ def build_dashboard(session: Session, tenant_id: str, document_id: str | None = 
                     score=score,
                 )
             )
-            seen_alert_documents.add(doc.document_id)
 
     recent_activity = [
         ActivityItem(
@@ -96,6 +95,14 @@ def build_audit_export(session: Session, tenant_id: str, document_id: str) -> di
     document = session.get(DocumentORM, document_id)
     if document is None:
         raise NotFoundError(f"Document {document_id} not found")
+    revoked_keys = set()
+    issuer_key = session.get(PublicKeyORM, document.issuer_key_id)
+    if issuer_key is not None and issuer_key.status == "revoked":
+        revoked_keys.add(issuer_key.key_id)
+    for event in document.events:
+        key = session.get(PublicKeyORM, event.actor_key_id)
+        if key is not None and key.status == "revoked":
+            revoked_keys.add(key.key_id)
     history = [
         {
             "event_id": event.event_id,
@@ -139,11 +146,7 @@ def build_audit_export(session: Session, tenant_id: str, document_id: str) -> di
         "history": history,
         "revocation": RevocationSummary(
             document_revoked=document.status == "revoked",
-            revoked_keys=[
-                event.actor_key_id
-                for event in document.events
-                if session.get(DocumentORM, event.document_id) is not None
-            ],
+            revoked_keys=sorted(revoked_keys),
         ).model_dump(mode="json"),
         "access_events": access_events,
         "risk_signals": [{"score": score, "reasons": reasons}],
@@ -152,4 +155,3 @@ def build_audit_export(session: Session, tenant_id: str, document_id: str) -> di
             last_verified_at=document.last_verified_at,
         ).model_dump(mode="json"),
     }
-

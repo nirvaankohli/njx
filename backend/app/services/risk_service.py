@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from app.models.db import AccessEventORM
 
 
-def _window_start(hours: int) -> datetime:
-    return datetime.now(timezone.utc) - timedelta(hours=hours)
+def _ensure_aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 def compute_risk_signals(session: Session, tenant_id: str, document_id: str) -> tuple[int, list[str]]:
@@ -26,10 +26,10 @@ def compute_risk_signals(session: Session, tenant_id: str, document_id: str) -> 
         )
     ).all()
 
-    recent = [event for event in events if event.timestamp >= last_24h]
+    recent = [event for event in events if _ensure_aware(event.timestamp) >= last_24h]
     recent_downloads = [event for event in recent if event.action == "download"]
-    very_recent_downloads = [event for event in events if event.timestamp >= last_1h and event.action == "download"]
-    countries = [event.country for event in events if event.timestamp >= last_7d and event.country]
+    very_recent_downloads = [event for event in events if _ensure_aware(event.timestamp) >= last_1h and event.action == "download"]
+    countries = [event.country for event in events if _ensure_aware(event.timestamp) >= last_7d and event.country]
     country_counts = Counter(countries)
 
     score = 0
@@ -57,4 +57,3 @@ def severity_for_score(score: int) -> str:
     if score >= 50:
         return "medium"
     return "low"
-

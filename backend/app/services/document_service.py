@@ -2,29 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
-from app.models.db import DocumentORM, PublicKeyORM, SignatureHistoryEventORM
+from app.models.db import DocumentORM, PublicKeyORM, SignatureHistoryEventORM, TenantORM
 from app.models.dto import DocumentRegistrationRequest, DocumentRegistrationResponse, EventAppendResponse, SignatureHistoryEvent
 from app.services.audit_service import log_action
 from app.services.errors import ConflictError, NotFoundError
-from app.services.signing_service import (
-    HistoryChainResult,
-    event_hash,
-    event_signed_bytes,
-    get_public_key,
-    manifest_hash,
-    manifest_signed_bytes,
-    verify_event_signature,
-    verify_manifest_signature,
-)
-
-
-def _require_tenant_key(session: Session, tenant_id: str) -> None:
-    tenant = session.execute(select(DocumentORM.tenant_id).where(DocumentORM.tenant_id == tenant_id)).first()
-    if tenant is None:
-        raise NotFoundError(f"Tenant {tenant_id} not found")
+from app.services.signing_service import HistoryChainResult, event_hash, get_public_key, manifest_hash, verify_event_signature, verify_manifest_signature
 
 
 def _validate_event_common(
@@ -69,8 +54,8 @@ def validate_and_store_history(
 
     previous_hash: str | None = None
     history_tip: str | None = None
-    for index, event in enumerate(history):
-        result, signed_hash, _ = _validate_event_common(
+    for event in history:
+        _, signed_hash, _ = _validate_event_common(
             session,
             document_id=document_id,
             event=event,
@@ -100,6 +85,9 @@ def validate_and_store_history(
 
 def register_document(session: Session, request: DocumentRegistrationRequest) -> DocumentRegistrationResponse:
     manifest = request.signed_manifest.manifest
+    tenant = session.get(TenantORM, manifest.tenant_id)
+    if tenant is None:
+        raise NotFoundError(f"Tenant {manifest.tenant_id} not found")
     existing = session.get(DocumentORM, manifest.document_id)
     if existing is not None:
         raise ConflictError(f"Document {manifest.document_id} already exists")
@@ -145,7 +133,7 @@ def register_document(session: Session, request: DocumentRegistrationRequest) ->
         document_id=manifest.document_id,
         details={"manifest_hash": computed_manifest_hash, "history_tip": history_tip},
     )
-    session.flush()
+    session.commit()
     return DocumentRegistrationResponse(
         document_id=manifest.document_id,
         manifest_hash=computed_manifest_hash,
@@ -200,11 +188,10 @@ def append_history_event(session: Session, document_id: str, event: SignatureHis
         document_id=document_id,
         details={"event_id": event.event_id, "event": event.event, "history_tip": signed_hash},
     )
-    session.flush()
+    session.commit()
     return EventAppendResponse(
         document_id=document_id,
         event_id=event.event_id,
         accepted=True,
         history_tip=signed_hash,
     )
-
