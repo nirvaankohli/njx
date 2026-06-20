@@ -203,7 +203,7 @@ export default function DocumentDownloadPage() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/70 p-3">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-[11px] tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-1 break-all text-sm text-foreground">{value}</div>
     </div>
   );

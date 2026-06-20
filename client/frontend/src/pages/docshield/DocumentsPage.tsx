@@ -24,6 +24,7 @@ import {
   signCanonicalPayload,
   toBackendIsoString,
 } from "@/lib/docshield-signing";
+import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
 import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -231,7 +232,7 @@ export default function DocumentsPage() {
       });
     } catch (err) {
       toast.error("Document signing failed", {
-        description: err instanceof Error ? err.message : "POST /documents not reachable",
+        description: err instanceof Error ? err.message : "Post /documents not reachable",
       });
     } finally {
       setBusy(false);
@@ -302,7 +303,7 @@ export default function DocumentsPage() {
                 <div className="group rounded-xl border border-border bg-background/70 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
+                      <div className="text-xs tracking-[0.16em] text-muted-foreground">Selected file</div>
                       <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
                       <div className="mt-1 text-sm text-muted-foreground">
                         {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
@@ -334,7 +335,7 @@ export default function DocumentsPage() {
                   <div className="border-b border-border/60 bg-background/60 px-5 py-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Access roles</div>
+                        <div className="text-xs tracking-[0.16em] text-muted-foreground">Access roles</div>
                         <div className="mt-1 text-base font-medium">Set who can open it</div>
                       </div>
                       <Badge variant="secondary" className="gap-1">
@@ -346,16 +347,16 @@ export default function DocumentsPage() {
 
                   <div className="grid gap-0 lg:grid-cols-[1fr_1px_0.92fr]">
                     <div className="space-y-4 px-5 py-5">
-                      <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
+                      <PolicyRow label="Block external Ai tools" value={blockAi} onChange={setBlockAi} />
                       <PolicyRow label="Anyone with link" value={anyoneWithLink} onChange={handleAnyoneWithLinkChange} />
 
                       <div>
-                        <div className="mb-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">Embedded AI tags</div>
+                        <div className="mb-3 text-xs tracking-[0.16em] text-muted-foreground">Embedded Ai tags</div>
                         <div className="flex flex-wrap gap-3">
                           {ALL_TAGS.map((tag) => (
                             <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
                               <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
-                              <span className="text-xs font-medium tracking-[0.08em]">{tag}</span>
+                              <span className="text-xs font-medium">{humanizeDocShieldLabel(tag)}</span>
                             </label>
                           ))}
                         </div>
@@ -374,7 +375,7 @@ export default function DocumentsPage() {
                           transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
                           className="space-y-3"
                         >
-                          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Private access</div>
+                          <div className="text-xs tracking-[0.16em] text-muted-foreground">Private access</div>
                           <div className="grid gap-2">
                             <AccessChoice
                               label="Password"
@@ -503,7 +504,7 @@ export default function DocumentsPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {doc.embedded_ai_tags.slice(0, 3).map((tag) => (
                     <Badge key={tag} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
-                      {tag}
+                      {humanizeDocShieldLabel(tag)}
                     </Badge>
                   ))}
                 </div>
@@ -553,7 +554,7 @@ function AccessChoice({
 function SignedField({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/70 p-3">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-[11px] tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-1 break-all text-sm text-foreground">{value}</div>
     </div>
   );

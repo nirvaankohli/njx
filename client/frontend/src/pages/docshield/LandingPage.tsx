@@ -136,7 +136,7 @@ export default function LandingPage() {
           <nav className="hidden items-center gap-6 text-sm text-white/[0.65] md:flex">
             <a href="#features" className="transition-colors hover:text-white">Features</a>
             <a href="#workflow" className="transition-colors hover:text-white">Workflow</a>
-            <a href="#reference" className="transition-colors hover:text-white">API</a>
+            <a href="#reference" className="transition-colors hover:text-white">Api</a>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -216,15 +216,15 @@ export default function LandingPage() {
                 <CardHeader>
                   <CardTitle className="text-lg text-white">MVP control plane</CardTitle>
                 <CardDescription className="text-white/[0.65]">
-                    Signed payloads, clean API calls, and a working dev loop.
+                    Signed payloads, clean Api calls, and a working dev loop.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {[
-                    { label: "Organization setup", value: "POST /setup", tone: "bg-emerald-500/15 text-emerald-200" },
-                    { label: "Document register", value: "POST /documents", tone: "bg-sky-500/15 text-sky-200" },
-                    { label: "Verify", value: "POST /verify", tone: "bg-violet-500/15 text-violet-200" },
-                    { label: "Telemetry", value: "POST /access-events", tone: "bg-amber-500/15 text-amber-100" },
+                    { label: "Organization setup", value: "Post /setup", tone: "bg-emerald-500/15 text-emerald-200" },
+                    { label: "Document register", value: "Post /documents", tone: "bg-sky-500/15 text-sky-200" },
+                    { label: "Verify", value: "Post /verify", tone: "bg-violet-500/15 text-violet-200" },
+                    { label: "Telemetry", value: "Post /access-events", tone: "bg-amber-500/15 text-amber-100" },
                   ].map((item) => (
                     <div
                       key={item.label}
@@ -232,7 +232,7 @@ export default function LandingPage() {
                     >
                       <div>
                         <div className="text-sm font-medium text-white">{item.label}</div>
-                        <div className="text-xs text-white/[0.55]">Ready for local FastAPI</div>
+                        <div className="text-xs text-white/[0.55]">Ready for local FastApi</div>
                       </div>
                       <Badge className={`border-0 ${item.tone}`}>{item.value}</Badge>
                     </div>
@@ -332,9 +332,9 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
             <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card px-6 py-8 md:flex-row md:items-center md:justify-between md:px-8">
               <div className="max-w-2xl">
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">API</p>
+                <p className="text-xs font-medium tracking-[0.22em] text-muted-foreground">Api</p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-                  The frontend now matches the FastAPI DTOs and dev proxy.
+                  The frontend now matches the FastApi data models and dev proxy.
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">
                   Query params, request bodies, and signed payloads line up with the backend, so local development

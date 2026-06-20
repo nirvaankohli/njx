@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Loader2, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
 import { api, type VerifyResult } from "@/lib/docshield-api";
+import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +60,7 @@ export default function VerifyPage() {
       setResult(response);
     } catch (err) {
       setResult(null);
-      toast.error("Verification failed", { description: err instanceof Error ? err.message : "POST /verify not reachable" });
+      toast.error("Verification failed", { description: err instanceof Error ? err.message : "Post /verify not reachable" });
     } finally {
       setLoading(false);
     }
@@ -180,7 +181,7 @@ function VerifyResultCard({ result }: { result: VerifyResult }) {
         </div>
 
         <div>
-          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Policy decision</div>
+          <div className="text-xs tracking-[0.16em] text-muted-foreground mb-2">Policy decision</div>
           <div className="rounded-xl border border-border bg-muted/30 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -197,11 +198,11 @@ function VerifyResultCard({ result }: { result: VerifyResult }) {
         </div>
 
         <div>
-          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Reasons</div>
+          <div className="text-xs tracking-[0.16em] text-muted-foreground mb-2">Reasons</div>
           <div className="flex flex-wrap gap-2">
             {result.reasons.map((reason) => (
               <Badge key={reason} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
-                {reason}
+                {humanizeDocShieldLabel(reason)}
               </Badge>
             ))}
           </div>
@@ -214,7 +215,7 @@ function VerifyResultCard({ result }: { result: VerifyResult }) {
 function ResultBadge({ label, value }: { label: string; value: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-background p-4">
-      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-xs tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className={`mt-1 text-sm font-medium ${value ? "text-emerald-500" : "text-destructive"}`}>
         {value ? "Pass" : "Fail"}
       </div>
@@ -225,7 +226,7 @@ function ResultBadge({ label, value }: { label: string; value: boolean }) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-xs tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-1 break-all text-xs text-foreground">{value}</div>
     </div>
   );

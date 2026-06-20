@@ -10,6 +10,7 @@ import { mockDocuments, mockHistory } from "@/lib/docshield-mock";
 import { formatFileSize } from "@/lib/docshield-file";
 import { ensureDevSigningIdentity, signCanonicalPayload, toBackendIsoString } from "@/lib/docshield-signing";
 import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
+import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,7 +118,7 @@ export default function DocumentDetailPage() {
       toast.success("History event appended", { description: response.event_id });
     } catch (err) {
       toast.error("Could not append event", {
-        description: err instanceof Error ? err.message : "POST /documents/{id}/events not reachable",
+        description: err instanceof Error ? err.message : "Post /documents/{id}/events not reachable",
       });
     } finally {
       setBusy(false);
@@ -160,7 +161,7 @@ export default function DocumentDetailPage() {
               />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Policy</div>
+              <div className="text-xs tracking-[0.16em] text-muted-foreground mb-2">Policy</div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">external_ai: {doc.policy.external_ai_upload}</Badge>
                 <Badge variant="secondary">secure_link: {String(doc.policy.secure_link_required)}</Badge>
@@ -169,11 +170,11 @@ export default function DocumentDetailPage() {
               </div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Embedded AI tags</div>
+              <div className="text-xs tracking-[0.16em] text-muted-foreground mb-2">Embedded Ai tags</div>
               <div className="flex flex-wrap gap-2">
                 {doc.embedded_ai_tags.map((tag) => (
                   <Badge key={tag} className="text-[10px] font-medium tracking-[0.08em]">
-                    {tag}
+                    {humanizeDocShieldLabel(tag)}
                   </Badge>
                 ))}
               </div>
@@ -271,7 +272,7 @@ export default function DocumentDetailPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
-                        {event.event}
+                        {humanizeDocShieldLabel(event.event)}
                       </Badge>
                       <span className="text-sm">{event.actor_org}</span>
                     </div>
@@ -296,7 +297,7 @@ export default function DocumentDetailPage() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-xs tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-1 break-all text-sm text-foreground">{value}</div>
     </div>
   );
