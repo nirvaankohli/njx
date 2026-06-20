@@ -3,11 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.models.dto import ManifestClaims, SignatureHistoryEvent
+from app.security.hashes import sha256_hex
 
 from .helpers import file_hash_for, manifest_hash_for, make_keypair, signed_event_payload, signed_manifest_payload
 
 
-def _register_document(client):
+def _register_document(client, content_fingerprint: str = "sha256:verified"):
     public_key_b64, private_key = make_keypair()
     client.post(
         "/setup",
@@ -34,7 +35,7 @@ def _register_document(client):
         tenant_id="tenant_acme",
         document_id="doc_verify",
         issuer_key_id="key_acme_primary",
-        content_fingerprint="sha256:verified",
+        content_fingerprint=content_fingerprint,
         policy={
             "external_ai_upload": "blocked",
             "secure_link_required": True,
@@ -254,3 +255,35 @@ def test_verify_uploaded_file_rejects_empty_body(client):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Uploaded file is empty"
+
+
+def test_verify_uploaded_file_rejects_wrong_issuer_key(client):
+    file_bytes = b"verified"
+    _register_document(client, sha256_hex(file_bytes))
+    replacement_public_key, _ = make_keypair()
+    client.post(
+        "/setup",
+        json={
+            "tenant": {
+                "tenant_id": "tenant_acme",
+                "org_name": "Acme Pharma",
+                "domains": ["acme.com"],
+                "admin_emails": ["admin@acme.com"],
+            },
+            "policy_templates": [],
+            "public_keys": [{
+                "key_id": "key_acme_primary",
+                "algorithm": "Ed25519",
+                "public_key_b64": replacement_public_key,
+                "status": "active",
+            }],
+        },
+    )
+
+    response = client.post("/verify/file", content=file_bytes)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "invalid_signature"
+    assert body["manifest_signature_valid"] is False
+    assert body["issuer_key_id"] == "key_acme_primary"
