@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DocShieldBrand } from "@/components/DocShieldBrand";
 
 export default function AuthPage() {
   const { user, loading, signIn, signUp } = useAuth();
@@ -66,10 +67,10 @@ export default function AuthPage() {
       <div className="w-full max-w-[420px] border border-border rounded-md p-8 space-y-6">
         <div className="flex flex-col items-start gap-3">
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-7 w-7 rounded-md border border-border flex items-center justify-center">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <span className="text-[14px] font-semibold tracking-tight">DocShield</span>
+            <DocShieldBrand
+              iconClassName="h-7 w-7 rounded-md bg-background object-contain p-1"
+              titleClassName="text-[14px] font-semibold tracking-tight"
+            />
           </Link>
           <p className="text-[13px] text-muted-foreground">
             Sign in to open the console. New here? Create an account, then your organization.
