@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.security.passwords import hash_password, hash_session_token, new_session_token, verify_password
+
 STATE_PATH = Path(__file__).resolve().parents[2] / ".frontend-state.json"
 STATE_LOCK = threading.Lock()
 
@@ -40,6 +42,8 @@ def _seed_state() -> dict[str, Any]:
         "signed_out": False,
         "current_user": user,
         "company_settings": company,
+        "users": {},
+        "sessions": {},
     }
 
 
@@ -84,6 +88,38 @@ def _user_from_email(email: str, full_name: str | None = None) -> dict[str, Any]
         "job_title": "Security Lead",
         "avatar_url": None,
     }
+
+
+def _public_user(account: dict[str, Any]) -> dict[str, Any]:
+    return {key: account.get(key) for key in ("id", "email", "full_name", "job_title", "avatar_url")}
+
+
+def _create_account(state: dict[str, Any], email: str, password: str, full_name: str | None) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    users = state.setdefault("users", {})
+    if normalized_email in users:
+        raise ValueError("An account with this email already exists")
+    salt, password_hash = hash_password(password)
+    account = {
+        **_user_from_email(normalized_email, full_name),
+        "password_salt": salt,
+        "password_hash": password_hash,
+    }
+    users[normalized_email] = account
+    return account
+
+
+def _authenticate(state: dict[str, Any], email: str, password: str) -> dict[str, Any]:
+    account = state.setdefault("users", {}).get(email.strip().lower())
+    if not account or not verify_password(password, account["password_salt"], account["password_hash"]):
+        raise ValueError("Invalid email or password")
+    return account
+
+
+def _start_session(state: dict[str, Any], account: dict[str, Any]) -> str:
+    token = new_session_token()
+    state.setdefault("sessions", {})[hash_session_token(token)] = account["email"]
+    return token
 
 
 def get_frontend_session() -> dict[str, Any]:
