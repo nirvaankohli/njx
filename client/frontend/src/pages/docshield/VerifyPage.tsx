@@ -99,19 +99,19 @@ export default function VerifyPage() {
       <header className="space-y-2">
         <Badge variant="secondary" className="gap-1">
           <ShieldCheck className="h-3.5 w-3.5" />
-          Backend verify
+          Ed25519 authenticity check
         </Badge>
-        <h1 className="text-2xl font-semibold tracking-tight">Verify</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Verify a document</h1>
         <p className="text-sm text-muted-foreground">
-          Uses the last uploaded signed manifest and history chain, then posts the exact verification DTO the backend expects.
+          Select a file to confirm that its exact contents match a document signed by a trusted issuer key.
         </p>
       </header>
 
       <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Keep the active document in sync</AlertTitle>
+        <FileCheck2 className="h-4 w-4" />
+        <AlertTitle>Your file stays private</AlertTitle>
         <AlertDescription>
-          Upload a document first so this page can reuse its signed manifest, history, and manifest hash.
+          DocShield streams the file to calculate its SHA-256 fingerprint. It does not store the uploaded bytes.
         </AlertDescription>
       </Alert>
 
