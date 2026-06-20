@@ -1,17 +1,28 @@
-import { useMemo } from "react";
-import { useParams } from "react-router-dom";
-import { ArrowLeft, Download, FileSignature, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, Download, FileSignature, ShieldCheck, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { formatFileSize } from "@/lib/docshield-file";
 import { getDocShieldSession } from "@/lib/docshield-session";
+import { sha256Hex } from "@/lib/docshield-signing";
+import { toast } from "sonner";
 
 export default function DocumentDownloadPage() {
   const session = getDocShieldSession();
   const { id = "" } = useParams();
   const documentId = decodeURIComponent(id);
   const active = session.activeDocument?.documentId === documentId ? session.activeDocument : null;
+  const passwordRequired = active?.accessPasswordRequired ?? false;
+  const [password, setPassword] = useState("");
+  const [unlocked, setUnlocked] = useState(!passwordRequired);
+
+  useEffect(() => {
+    setPassword("");
+    setUnlocked(!passwordRequired);
+  }, [documentId, passwordRequired]);
 
   const packagePayload = useMemo(
     () =>
@@ -26,13 +37,29 @@ export default function DocumentDownloadPage() {
             history: active.history,
             manifest_hash: active.manifestHash,
             document_id: active.documentId,
+            password_required: passwordRequired,
           }
         : null,
-    [active, documentId],
+    [active, documentId, passwordRequired],
   );
 
+  async function unlock() {
+    if (!active || !passwordRequired) {
+      setUnlocked(true);
+      return;
+    }
+    const hashed = await sha256Hex(password);
+    if (hashed !== active.accessPasswordHash) {
+      toast.error("Password incorrect", {
+        description: "Try the access password you set when signing the file.",
+      });
+      return;
+    }
+    setUnlocked(true);
+  }
+
   function handleDownload() {
-    if (!active || !packagePayload) return;
+    if (!active || !packagePayload || (passwordRequired && !unlocked)) return;
     const sourceName = active.sourceFileName ?? documentId;
     const downloadName = `${sourceName.replace(/\.[^.]+$/, "")}.docshield.json`;
     const blob = new Blob([JSON.stringify(packagePayload, null, 2)], { type: "application/json" });
@@ -64,8 +91,7 @@ export default function DocumentDownloadPage() {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Download signed document</h1>
         <p className="text-sm text-muted-foreground">
-          This page gives you the signed passport bundle, not the raw document. Use it to export the manifest, history,
-          and source metadata in one file.
+          Download the signed bundle, not the raw file. If this file uses a password, unlock it first.
         </p>
       </header>
 
@@ -84,12 +110,34 @@ export default function DocumentDownloadPage() {
               <InfoRow label="Manifest hash" value={active.manifestHash} mono />
               <InfoRow label="History events" value={`${active.history.length}`} />
             </div>
-            <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-              The download contains the signed manifest and the local signing history, so the user gets the passport
-              bundle instead of the source document itself.
-            </div>
+
+            {passwordRequired && !unlocked ? (
+              <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Lock className="h-4 w-4" />
+                  Password required
+                </div>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter the access password"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => void unlock()}>
+                    <ShieldCheck className="mr-1.5 h-4 w-4" />
+                    Unlock download
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                The download contains the signed manifest and signing history.
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
-              <Button onClick={handleDownload}>
+              <Button onClick={handleDownload} disabled={passwordRequired && !unlocked}>
                 <Download className="mr-1.5 h-4 w-4" />
                 Download signed package
               </Button>
