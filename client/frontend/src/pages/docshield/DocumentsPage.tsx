@@ -278,7 +278,7 @@ export default function DocumentsPage() {
             <CardDescription>Drop a file or choose one from your device.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-0">
-            <div className="space-y-6">
+            <div className="space-y-8">
               <label
                 htmlFor="doc-upload"
                 className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
@@ -312,7 +312,7 @@ export default function DocumentsPage() {
                       type="button"
                       onClick={clearSelectedFile}
                       aria-label="Remove selected file"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground opacity-0 transition-all duration-200 ease-out hover:border-red-400 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground opacity-0 transition-all duration-200 ease-out hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -329,7 +329,7 @@ export default function DocumentsPage() {
                   animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, height: "auto" }}
                   exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10, height: 0 }}
                   transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
-                  className="mt-8 overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
+                  className="mt-10 overflow-hidden rounded-xl border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
                 >
                   <div className="border-b border-border/60 bg-background/60 px-5 py-4">
                     <div className="flex items-center justify-between gap-3">
