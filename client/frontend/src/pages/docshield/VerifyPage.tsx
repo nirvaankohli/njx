@@ -135,30 +135,21 @@ export default function VerifyPage() {
                   }}
                 />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Usage context</Label>
-                  <Select value={operation} onValueChange={setOperation}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OPERATIONS.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {selectedFile && (
+                <div className="rounded-xl border border-border bg-muted/30 p-4">
+                  <div className="flex items-center gap-3">
+                    <FileCheck2 className="h-5 w-5 text-primary" />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{selectedFile.name}</div>
+                      <div className="text-xs text-muted-foreground">{formatBytes(selectedFile.size)}</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>App</Label>
-                  <Input value={appName} onChange={(e) => setAppName(e.target.value)} />
-                </div>
-              </div>
-              <Button type="submit" disabled={loading || !session.activeDocument} className="w-full">
+              )}
+              <Button type="submit" disabled={loading || !selectedFile} className="w-full">
                 {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                Verify document
+                {!loading && <UploadCloud className="mr-1.5 h-4 w-4" />}
+                {loading ? "Checking signatures…" : "Upload and verify"}
               </Button>
             </form>
           </CardContent>
