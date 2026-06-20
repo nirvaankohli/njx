@@ -1,0 +1,10 @@
+{
+  "name": "njx",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "npm run dev"
+  }
+}

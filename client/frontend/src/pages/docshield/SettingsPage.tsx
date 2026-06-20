@@ -5,26 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
-
-type CompanySettings = Tables<"company_settings">;
+import { frontendApi, type FrontendCompanySettings } from "@/lib/frontend-api";
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [company, setCompany] = useState<CompanySettings | null>(null);
+  const [company, setCompany] = useState<FrontendCompanySettings>(null);
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("company_settings")
-      .select("*")
-      .eq("user_id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) setCompany(data as CompanySettings);
-      });
+    frontendApi.companySettings().then((data) => {
+      if (data && data.user_id === user.id) {
+        setCompany(data);
+      }
+    });
   }, [user]);
 
   const handleSignOut = async () => {

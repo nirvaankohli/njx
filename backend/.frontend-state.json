@@ -1,0 +1,23 @@
+{
+  "company_settings": {
+    "address": null,
+    "company_logo_url": null,
+    "company_name": "bedi.rajveer09",
+    "company_size": null,
+    "company_website": null,
+    "created_at": "2026-06-20T22:48:11.603673+00:00",
+    "id": "company-6ba99b97-868c-55aa-a026-c0352e61bf33",
+    "industry": null,
+    "phone": null,
+    "updated_at": "2026-06-20T22:48:11.603676+00:00",
+    "user_id": "6ba99b97-868c-55aa-a026-c0352e61bf33"
+  },
+  "current_user": {
+    "avatar_url": null,
+    "email": "bedi.rajveer09@gmail.com",
+    "full_name": "bedi.rajveer09",
+    "id": "6ba99b97-868c-55aa-a026-c0352e61bf33",
+    "job_title": "Security Lead"
+  },
+  "signed_out": false
+}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { frontendApi } from "@/lib/frontend-api";
 import { useToast } from "@/hooks/use-toast";
 
 export default function OnboardingPage() {
@@ -21,19 +21,20 @@ export default function OnboardingPage() {
     e.preventDefault();
     if (!user) return;
     setSubmitting(true);
-    const { error } = await supabase.from("company_settings").insert({
-      user_id: user.id,
-      company_name: name,
-      company_website: website || null,
-      industry: industry || null,
-    });
-    setSubmitting(false);
-    if (error) {
-      toast({ title: "Could not create organization", description: error.message, variant: "destructive" });
+    try {
+      await frontendApi.saveCompanySettings({
+        company_name: name,
+        company_website: website || null,
+        industry: industry || null,
+      });
+      toast({ title: "Organization created" });
+      navigate("/app", { replace: true });
+    } catch (err: any) {
+      toast({ title: "Could not create organization", description: err.message, variant: "destructive" });
       return;
+    } finally {
+      setSubmitting(false);
     }
-    toast({ title: "Organization created" });
-    navigate("/app", { replace: true });
   };
 
   return (
@@ -86,12 +87,14 @@ export default function OnboardingPage() {
           </Button>
         </form>
 
-        <button
+        <Button
+          type="button"
+          variant="ghost"
           onClick={() => signOut().then(() => navigate("/auth"))}
-          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          className="px-0 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
         >
           Sign out
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -7,7 +7,6 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { OrgGate } from "@/components/OrgGate";
-import LandingPage from "./pages/docshield/LandingPage";
 import AuthPage from "./pages/docshield/AuthPage";
 import OnboardingPage from "./pages/docshield/OnboardingPage";
 import DocShieldLayout from "./components/DocShieldLayout";
@@ -19,6 +18,7 @@ import AccessEventsPage from "./pages/docshield/AccessEventsPage";
 import ReferencePage from "./pages/docshield/ReferencePage";
 import SettingsPage from "./pages/docshield/SettingsPage";
 import SetupPage from "./pages/docshield/SetupPage";
+import Index from "./pages/Index";
 
 import NotFound from "./pages/NotFound";
 
@@ -33,7 +33,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={<Index />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route
                 path="/onboarding"

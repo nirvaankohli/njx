@@ -1,155 +1,272 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api, type HistoryEvent, type DocumentManifest } from "@/lib/docshield-api";
+import { ArrowLeft, Loader2, Plus } from "lucide-react";
+import {
+  api,
+  type DocumentManifest,
+  type SignedHistoryEventPayload,
+} from "@/lib/docshield-api";
 import { mockDocuments, mockHistory } from "@/lib/docshield-mock";
+import { ensureDevSigningIdentity, signCanonicalPayload, toBackendIsoString } from "@/lib/docshield-signing";
+import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-const ACTIONS = ["issued", "sent", "received", "confirmed", "approved", "reissued"] as const;
+const ACTIONS = ["issued", "sent", "received", "confirmed_received", "approved", "reissued", "revoked"] as const;
 
 export default function DocumentDetailPage() {
+  const session = getDocShieldSession();
   const { id = "" } = useParams();
   const documentId = decodeURIComponent(id);
+  const activeDocumentId = session.activeDocument?.documentId ?? null;
+  const activeDocumentFingerprint = session.activeDocument?.contentFingerprint ?? null;
+  const activeDocumentHistoryTip = session.activeDocument?.historyTip ?? null;
+  const activeDocumentManifestHash = session.activeDocument?.manifestHash ?? null;
   const [doc, setDoc] = useState<DocumentManifest | null>(null);
-  const [history, setHistory] = useState<HistoryEvent[]>([]);
+  const [history, setHistory] = useState<SignedHistoryEventPayload[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const [action, setAction] = useState<typeof ACTIONS[number]>("sent");
-  const [actorOrg, setActorOrg] = useState("");
-  const [keyId, setKeyId] = useState("");
+  const [actorOrg, setActorOrg] = useState("BuyerCo");
+  const [keyId, setKeyId] = useState(session.issuerKeyId);
   const [signature, setSignature] = useState("");
+  const [payloadNote, setPayloadNote] = useState("Buyer confirmed receipt");
 
+  // The session object is rehydrated on every render, so we key the effect off
+  // stable primitives to avoid a refetch/render loop while still reacting to
+  // active document changes.
   useEffect(() => {
-    setDoc(mockDocuments.find((d) => d.document_id === documentId) ?? null);
+    if (activeDocumentId === documentId && session.activeDocument) {
+      setDoc({
+        document_id: session.activeDocument.documentId,
+        tenant_id: session.tenantId,
+        content_fingerprint: activeDocumentFingerprint ?? session.activeDocument.contentFingerprint,
+        policy: session.activeDocument.signedManifest.manifest.policy,
+        embedded_ai_tags: session.activeDocument.signedManifest.manifest.embedded_ai_tags,
+        signer_refs: [session.issuerKeyId],
+        created_at: session.activeDocument.signedManifest.manifest.created_at,
+        status: "active",
+      });
+      setHistory(session.activeDocument.history);
+      return;
+    }
+
+    const localDocument = mockDocuments.find((entry) => entry.document_id === documentId) ?? null;
+    setDoc(localDocument);
     setHistory(mockHistory[documentId] ?? []);
-  }, [documentId]);
+  }, [documentId, activeDocumentId, activeDocumentFingerprint, activeDocumentHistoryTip, activeDocumentManifestHash, session.issuerKeyId, session.tenantId]);
+
+  const manifestHash = useMemo(() => activeDocumentManifestHash ?? `sha256:${documentId}`, [documentId, activeDocumentManifestHash]);
+  const previousEventHash = activeDocumentHistoryTip;
 
   async function addEvent(e: React.FormEvent) {
     e.preventDefault();
-    const ev: HistoryEvent = {
-      action,
-      actor_org: actorOrg,
-      actor_key_id: keyId,
-      timestamp: new Date().toISOString(),
-      previous_event_hash: history.length ? `sha256:${Math.random().toString(16).slice(2, 10)}…` : undefined,
-      signature,
-    };
+    if (!doc) return;
+
+    setBusy(true);
     try {
-      const saved = await api.addHistory(documentId, ev);
-      setHistory((h) => [...h, saved]);
-      toast.success("History event appended");
-    } catch {
-      setHistory((h) => [...h, { ...ev, event_id: `evt_${Math.random().toString(16).slice(2, 8)}` }]);
-      toast.message("Saved locally", { description: "POST /documents/{id}/events not reachable." });
+      await ensureDevSigningIdentity();
+      const timestamp = toBackendIsoString();
+      const eventBase = {
+        event_id: `evt_${Math.random().toString(16).slice(2, 8)}`,
+        document_id: documentId,
+        event: action,
+        actor_org: actorOrg,
+        actor_key_id: keyId,
+        timestamp,
+        previous_event_hash: previousEventHash,
+        manifest_hash: manifestHash,
+        payload: payloadNote ? { note: payloadNote } : {},
+      };
+      const signedEvent: SignedHistoryEventPayload = {
+        ...eventBase,
+        signature: signature || (await signCanonicalPayload(eventBase)),
+      };
+      const response = await api.addHistory(documentId, signedEvent);
+      setHistory((current) => [...current, signedEvent]);
+      updateDocShieldSession({
+        activeDocument: session.activeDocument
+          ? {
+              ...session.activeDocument,
+              historyTip: response.history_tip,
+              history: [...session.activeDocument.history, signedEvent],
+            }
+          : session.activeDocument,
+      });
+      setSignature("");
+      setPayloadNote("");
+      toast.success("History event appended", { description: response.event_id });
+    } catch (err) {
+      toast.error("Could not append event", {
+        description: err instanceof Error ? err.message : "POST /documents/{id}/events not reachable",
+      });
+    } finally {
+      setBusy(false);
+      setShowForm(false);
     }
-    setShowForm(false);
-    setActorOrg("");
-    setKeyId("");
-    setSignature("");
   }
 
   return (
     <div className="space-y-6">
       <Link to="/app/documents" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-3.5 w-3.5 mr-1" /> All documents
+        <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+        All documents
       </Link>
 
-      <header>
-        <div className="font-mono text-sm text-muted-foreground">{documentId}</div>
-        <h1 className="text-2xl font-semibold tracking-tight mt-1">Document passport</h1>
+      <header className="space-y-2">
+        <div className="text-sm text-muted-foreground">{documentId}</div>
+        <h1 className="text-2xl font-semibold tracking-tight">Document passport</h1>
       </header>
 
-      {doc && (
-        <section className="rounded-lg border border-border bg-card p-6 space-y-4">
-          <div className="grid sm:grid-cols-2 gap-4 text-sm">
-            <Field label="Tenant" value={doc.tenant_id} />
-            <Field label="Status" value={doc.status ?? "active"} />
-            <Field label="Fingerprint" value={doc.content_fingerprint} mono />
-            <Field label="Signers" value={doc.signer_refs.join(", ") || "—"} mono />
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Policy</div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <Badge variant="secondary">external_ai: {doc.policy.external_ai_upload}</Badge>
-              <Badge variant="secondary">secure_link: {String(doc.policy.secure_link_required)}</Badge>
-              <Badge variant="secondary">forwarding: {doc.policy.forwarding}</Badge>
-              <Badge variant="secondary">public_sharing: {doc.policy.public_sharing}</Badge>
+      {doc ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Manifest summary</CardTitle>
+            <CardDescription>Current document state and policy controls.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Tenant" value={doc.tenant_id} />
+              <Field label="Status" value={doc.status ?? "active"} />
+              <Field label="Fingerprint" value={doc.content_fingerprint} mono />
+              <Field label="Signers" value={doc.signer_refs.join(", ") || "—"} mono />
             </div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Embedded AI tags</div>
-            <div className="flex flex-wrap gap-2">
-              {doc.embedded_ai_tags.map((t) => (
-                <Badge key={t} className="font-mono text-[10px]">{t}</Badge>
-              ))}
+            <div>
+              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Policy</div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary">external_ai: {doc.policy.external_ai_upload}</Badge>
+                <Badge variant="secondary">secure_link: {String(doc.policy.secure_link_required)}</Badge>
+                <Badge variant="secondary">forwarding: {doc.policy.forwarding}</Badge>
+                <Badge variant="secondary">public_sharing: {doc.policy.public_sharing}</Badge>
+              </div>
             </div>
-          </div>
-        </section>
+            <div>
+              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Embedded AI tags</div>
+              <div className="flex flex-wrap gap-2">
+                {doc.embedded_ai_tags.map((tag) => (
+                  <Badge key={tag} className="font-mono text-[10px]">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">Document not found.</CardContent>
+        </Card>
       )}
 
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium">Signing history</h2>
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-            <Plus className="h-4 w-4 mr-1" /> Append event
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Signing history</h2>
+            <p className="text-sm text-muted-foreground">Append a signed event to the document chain.</p>
+          </div>
+          <Button size="sm" onClick={() => setShowForm((value) => !value)}>
+            <Plus className="mr-1 h-4 w-4" />
+            Append event
           </Button>
         </div>
 
         {showForm && (
-          <form onSubmit={addEvent} className="rounded-lg border border-border bg-card p-5 space-y-4 mb-4">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Action</Label>
-                <Select value={action} onValueChange={(v) => setAction(v as typeof ACTIONS[number])}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {ACTIONS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Actor org</Label>
-                <Input value={actorOrg} onChange={(e) => setActorOrg(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Actor key ID</Label>
-                <Input value={keyId} onChange={(e) => setKeyId(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Signature</Label>
-                <Input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="ed25519:…" required />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button type="submit">Append</Button>
-            </div>
-          </form>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Append a signed event</CardTitle>
+              <CardDescription>The payload is signed in-browser before the backend sees it.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={addEvent} className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Action</Label>
+                    <Select value={action} onValueChange={(value) => setAction(value as typeof ACTIONS[number])}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACTIONS.map((item) => (
+                          <SelectItem key={item} value={item}>
+                            {item}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Actor org</Label>
+                    <Input value={actorOrg} onChange={(e) => setActorOrg(e.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Actor key ID</Label>
+                    <Input value={keyId} onChange={(e) => setKeyId(e.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Signature override</Label>
+                    <Input
+                      value={signature}
+                      onChange={(e) => setSignature(e.target.value)}
+                      placeholder="Leave blank to sign automatically"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Payload note</Label>
+                  <Textarea
+                    value={payloadNote}
+                    onChange={(e) => setPayloadNote(e.target.value)}
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={busy || !doc}>
+                    {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                    Append
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
-        <ol className="relative border-l border-border ml-2 space-y-5">
-          {history.map((e, i) => (
-            <li key={e.event_id ?? i} className="ml-5">
-              <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full bg-primary" />
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="font-mono text-[10px]">{e.action}</Badge>
-                <span className="text-sm">{e.actor_org}</span>
-                <span className="text-xs text-muted-foreground ml-auto">{new Date(e.timestamp).toLocaleString()}</span>
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground font-mono break-all">
-                key={e.actor_key_id} · sig={e.signature}
-              </div>
-            </li>
+        <div className="relative space-y-4 border-l border-border pl-5">
+          {history.map((event) => (
+            <div key={event.event_id} className="relative">
+              <span className="absolute -left-[29px] top-2 h-3 w-3 rounded-full bg-primary" />
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {event.event}
+                      </Badge>
+                      <span className="text-sm">{event.actor_org}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{new Date(event.timestamp).toLocaleString()}</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2 text-xs text-muted-foreground">
+                  <div className="font-mono break-all">key={event.actor_key_id}</div>
+                  <div className="font-mono break-all">sig={event.signature}</div>
+                  <div className="font-mono break-all">manifest={event.manifest_hash}</div>
+                </CardContent>
+              </Card>
+            </div>
           ))}
-          {history.length === 0 && (
-            <li className="ml-5 text-sm text-muted-foreground">No history events yet.</li>
-          )}
-        </ol>
+          {history.length === 0 && <div className="text-sm text-muted-foreground">No history events yet.</div>}
+        </div>
       </section>
     </div>
   );
@@ -158,7 +275,7 @@ export default function DocumentDetailPage() {
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className={`mt-1 ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</div>
     </div>
   );

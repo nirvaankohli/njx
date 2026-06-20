@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { frontendApi } from "@/lib/frontend-api";
 
 export function OrgGate({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -14,13 +14,9 @@ export function OrgGate({ children }: { children: React.ReactNode }) {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("company_settings")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const data = await frontendApi.companySettings();
       if (cancelled) return;
-      setHasOrg(!!data);
+      setHasOrg(!!data && data.user_id === user.id);
       setChecking(false);
     })();
     return () => {
