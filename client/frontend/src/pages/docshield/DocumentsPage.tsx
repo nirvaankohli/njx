@@ -278,7 +278,7 @@ export default function DocumentsPage() {
             <CardDescription>Drop a file or choose one from your device.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-0">
-            <div className="space-y-12">
+            <div className="space-y-12 py-12 pt-0">
               <label
                 htmlFor="doc-upload"
                 className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
