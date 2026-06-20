@@ -398,8 +398,8 @@ export default function DocumentsPage() {
                     )}
                     {signedPackage?.backendStatus === "registered" && session.activeDocument?.documentId && (
                       <Button asChild variant="ghost" size="sm">
-                        <Link to={`/app/documents/${encodeURIComponent(session.activeDocument.documentId)}`}>
-                          View passport
+                        <Link to={`/app/documents/${encodeURIComponent(session.activeDocument.documentId)}/download`}>
+                          Open download page
                         </Link>
                       </Button>
                     )}

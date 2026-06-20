@@ -13,6 +13,7 @@ import DocShieldLayout from "./components/DocShieldLayout";
 import DashboardPage from "./pages/docshield/DashboardPage";
 import DocumentsPage from "./pages/docshield/DocumentsPage";
 import DocumentDetailPage from "./pages/docshield/DocumentDetailPage";
+import DocumentDownloadPage from "./pages/docshield/DocumentDownloadPage";
 import VerifyPage from "./pages/docshield/VerifyPage";
 import AccessEventsPage from "./pages/docshield/AccessEventsPage";
 import ReferencePage from "./pages/docshield/ReferencePage";
@@ -55,6 +56,7 @@ const App = () => (
               >
                 <Route index element={<DashboardPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
+                <Route path="documents/:id/download" element={<DocumentDownloadPage />} />
                 <Route path="documents/:id" element={<DocumentDetailPage />} />
                 <Route path="verify" element={<VerifyPage />} />
                 <Route path="access-events" element={<AccessEventsPage />} />
