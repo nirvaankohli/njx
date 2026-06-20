@@ -242,13 +242,18 @@ export default function DocumentsPage() {
                   <Input value={signerRefs} onChange={(e) => setSignerRefs(e.target.value)} placeholder="key_acme_primary" />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Content fingerprint</Label>
+                  <Label htmlFor="document-file">Document file</Label>
                   <Input
-                    value={fingerprint}
-                    onChange={(e) => setFingerprint(e.target.value)}
-                    placeholder="sha256:..."
+                    id="document-file"
+                    type="file"
+                    onChange={(event) => void selectDocument(event.target.files?.[0] ?? null)}
                     required
                   />
+                  {documentFile && (
+                    <p className="break-all font-mono text-xs text-muted-foreground">
+                      {documentFile.name} · {fingerprint || "Calculating SHA-256…"}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Uploaded by</Label>
