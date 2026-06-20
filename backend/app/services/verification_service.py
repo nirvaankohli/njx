@@ -145,6 +145,7 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
             VerifyResult(
                 status="invalid_signature",
                 document_id=manifest.document_id,
+                issuer_key_id=manifest.issuer_key_id,
                 fingerprint_match=False,
                 manifest_signature_valid=False,
                 signature_chain_valid=False,
@@ -158,6 +159,7 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
         result = VerifyResult(
             status="revoked",
             document_id=manifest.document_id,
+            issuer_key_id=manifest.issuer_key_id,
             fingerprint_match=False,
             manifest_signature_valid=False,
             signature_chain_valid=False,
@@ -172,6 +174,7 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
         result = VerifyResult(
             status="invalid_signature",
             document_id=manifest.document_id,
+            issuer_key_id=manifest.issuer_key_id,
             fingerprint_match=False,
             manifest_signature_valid=False,
             signature_chain_valid=False,
@@ -186,6 +189,7 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
         result = VerifyResult(
             status="tampered",
             document_id=manifest.document_id,
+            issuer_key_id=manifest.issuer_key_id,
             fingerprint_match=False,
             manifest_signature_valid=True,
             signature_chain_valid=False,
@@ -233,6 +237,7 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
     result = VerifyResult(
         status=status,
         document_id=manifest.document_id,
+        issuer_key_id=manifest.issuer_key_id,
         fingerprint_match=fingerprint_match,
         manifest_signature_valid=True,
         signature_chain_valid=chain_result.valid,

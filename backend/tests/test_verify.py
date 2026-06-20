@@ -225,6 +225,7 @@ def test_verify_signed_manifest_for_pdf_fixture(client):
     upload_body = upload_response.json()
     assert upload_body["status"] == "valid"
     assert upload_body["document_id"] == "doc_invoice_pdf"
+    assert upload_body["issuer_key_id"] == "key_acme_primary"
     assert upload_body["fingerprint_match"] is True
     assert upload_body["manifest_signature_valid"] is True
     assert upload_body["signature_chain_valid"] is True
