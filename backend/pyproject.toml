@@ -16,6 +16,8 @@ dependencies = [
   "asyncpg",
   "cryptography",
   "python-dotenv",
+  "numpy",
+  "torch",
 ]
 
 [project.optional-dependencies]
@@ -27,4 +29,3 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-

@@ -4,11 +4,14 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from math import exp, sqrt
 
+import torch
+from torch.nn import functional as F
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.db import AccessEventORM, AnomalyModelStateORM, DocumentORM
 from app.models.dto import AccessEvent
+from app.services.anomaly_nn import dump_model, load_model
 from app.services.errors import ConflictError, NotFoundError
 
 
@@ -17,32 +20,32 @@ class FeatureSpec:
     name: str
     prior_mean: float
     prior_variance: float
-    weight: float
     reason_high: str | None = None
     reason_low: str | None = None
 
 
 FEATURE_SPECS: tuple[FeatureSpec, ...] = (
-    FeatureSpec("download_count_24h", prior_mean=0.75, prior_variance=2.25, weight=1.35, reason_high="download_spike"),
-    FeatureSpec("download_count_1h", prior_mean=0.15, prior_variance=1.0, weight=1.6, reason_high="burst_access"),
-    FeatureSpec("blocked_count_24h", prior_mean=0.0, prior_variance=0.5, weight=1.0, reason_high="blocked_attempts"),
-    FeatureSpec("distinct_countries_7d", prior_mean=1.0, prior_variance=0.75, weight=1.15, reason_high="new_geography"),
-    FeatureSpec("distinct_clients_7d", prior_mean=1.0, prior_variance=0.75, weight=1.0, reason_high="multi_client_clusters"),
+    FeatureSpec("download_count_24h", prior_mean=0.75, prior_variance=2.25, reason_high="download_spike"),
+    FeatureSpec("download_count_1h", prior_mean=0.15, prior_variance=1.0, reason_high="burst_access"),
+    FeatureSpec("blocked_count_24h", prior_mean=0.0, prior_variance=0.5, reason_high="blocked_attempts"),
+    FeatureSpec("distinct_countries_7d", prior_mean=1.0, prior_variance=0.75, reason_high="new_geography"),
+    FeatureSpec("distinct_clients_7d", prior_mean=1.0, prior_variance=0.75, reason_high="multi_client_clusters"),
     FeatureSpec(
         "minutes_since_previous_event",
         prior_mean=240.0,
         prior_variance=14400.0,
-        weight=0.7,
         reason_high="stale_activity",
         reason_low="burst_access",
     ),
-    FeatureSpec("country_novelty", prior_mean=0.0, prior_variance=0.25, weight=1.0, reason_high="new_geography"),
+    FeatureSpec("country_novelty", prior_mean=0.0, prior_variance=0.25, reason_high="new_geography"),
 )
 
-FEATURE_MAP: dict[str, FeatureSpec] = {spec.name: spec for spec in FEATURE_SPECS}
+FEATURE_INDEX = {spec.name: index for index, spec in enumerate(FEATURE_SPECS)}
 FEATURE_STD_FLOOR = 0.35
-SCORE_DECAY = 3.25
-REASON_Z_THRESHOLD = 1.0
+INPUT_CLIP = 5.0
+SCORE_SCALE = 14.0
+TRAINING_SCORE_CUTOFF = 40
+WARMUP_SAMPLES = 3
 
 
 def _ensure_aware(value: datetime) -> datetime:
@@ -78,7 +81,7 @@ def _build_feature_vector(events: list[AccessEventORM], current_event: AccessEve
     distinct_clients_7d = len({_client_signature(event) for event in recent_7d if event.ip_hash or event.user_agent_hash})
     country_novelty = 1.0 if current_event.country and current_event.country not in prior_countries else 0.0
     minutes_since_previous_event = (
-        max(0.0, (current_ts - prior_ts).total_seconds() / 60.0) if prior_ts is not None else FEATURE_MAP["minutes_since_previous_event"].prior_mean
+        max(0.0, (current_ts - prior_ts).total_seconds() / 60.0) if prior_ts is not None else FEATURE_SPECS[FEATURE_INDEX["minutes_since_previous_event"]].prior_mean
     )
 
     return {
@@ -99,6 +102,7 @@ def _initial_state(document: DocumentORM) -> AnomalyModelStateORM:
         sample_count=0,
         feature_means={spec.name: spec.prior_mean for spec in FEATURE_SPECS},
         feature_m2={spec.name: 0.0 for spec in FEATURE_SPECS},
+        model_state_blob=None,
         latest_feature_vector={},
         latest_score=0,
         latest_reasons=[],
@@ -127,35 +131,37 @@ def _feature_variance(state: AnomalyModelStateORM, spec: FeatureSpec) -> float:
     return max(variance, spec.prior_variance * 0.25, FEATURE_STD_FLOOR**2)
 
 
-def _score_features(state: AnomalyModelStateORM, features: dict[str, float]) -> tuple[int, list[str]]:
-    anomaly_mass = 0.0
-    reason_candidates: list[tuple[float, str]] = []
-
+def _normalized_features(state: AnomalyModelStateORM, features: dict[str, float]) -> tuple[torch.Tensor, dict[str, float]]:
+    z_scores: dict[str, float] = {}
+    values: list[float] = []
     for spec in FEATURE_SPECS:
-        value = float(features[spec.name])
         mean = float(state.feature_means.get(spec.name, spec.prior_mean))
         variance = _feature_variance(state, spec)
         std = sqrt(variance)
-        z_score = (value - mean) / std
+        z_score = (float(features[spec.name]) - mean) / std
+        z_scores[spec.name] = z_score
+        values.append(max(-INPUT_CLIP, min(INPUT_CLIP, z_score)) / INPUT_CLIP)
+    return torch.tensor([values], dtype=torch.float32), z_scores
 
-        if spec.reason_high is not None and z_score >= 0:
-            reason = spec.reason_high
-        elif spec.reason_low is not None and z_score < 0:
+
+def _reason_codes(z_scores: dict[str, float], residuals: torch.Tensor) -> list[str]:
+    ranking: list[tuple[float, str]] = []
+    residual_values = residuals.squeeze(0).abs().tolist()
+    for index, spec in enumerate(FEATURE_SPECS):
+        score = float(residual_values[index])
+        z_score = float(z_scores[spec.name])
+        if spec.reason_low is not None and z_score < -1.0:
             reason = spec.reason_low
+        elif spec.reason_high is not None and z_score > 1.0:
+            reason = spec.reason_high
         else:
-            reason = None
+            continue
+        ranking.append((score + abs(z_score), reason))
 
-        contribution = spec.weight * max(abs(z_score) - 0.85, 0.0) ** 2
-        anomaly_mass += contribution
-        if reason is not None and abs(z_score) >= REASON_Z_THRESHOLD:
-            reason_candidates.append((contribution, reason))
-
-    score = min(100, round(100 * (1 - exp(-anomaly_mass / SCORE_DECAY))))
-    reason_candidates.sort(key=lambda item: item[0], reverse=True)
-
+    ranking.sort(key=lambda item: item[0], reverse=True)
     reasons: list[str] = []
     seen: set[str] = set()
-    for _, reason in reason_candidates:
+    for _, reason in ranking:
         if reason in seen:
             continue
         seen.add(reason)
@@ -163,13 +169,15 @@ def _score_features(state: AnomalyModelStateORM, features: dict[str, float]) -> 
         if len(reasons) == 3:
             break
 
-    if score > 0 and not reasons:
-        reasons.append("model_deviation")
-
-    return score, reasons
+    return reasons
 
 
-def _update_state(state: AnomalyModelStateORM, features: dict[str, float], score: int, reasons: list[str], timestamp: datetime) -> None:
+def _score_from_error(reconstruction_error: float) -> int:
+    score = 100 * (1.0 - exp(-reconstruction_error * SCORE_SCALE))
+    return max(0, min(100, round(score)))
+
+
+def _update_state_stats(state: AnomalyModelStateORM, features: dict[str, float], timestamp: datetime) -> None:
     next_count = state.sample_count + 1
     for spec in FEATURE_SPECS:
         value = float(features[spec.name])
@@ -183,10 +191,24 @@ def _update_state(state: AnomalyModelStateORM, features: dict[str, float], score
         state.feature_m2[spec.name] = m2
 
     state.sample_count = next_count
-    state.latest_feature_vector = features
-    state.latest_score = score
-    state.latest_reasons = reasons
     state.last_scored_at = timestamp
+    state.updated_at = datetime.now(timezone.utc)
+
+
+def _train_model(model: torch.nn.Module, tensor: torch.Tensor) -> float:
+    model.train()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
+    loss_value = 0.0
+    for _ in range(2):
+        optimizer.zero_grad(set_to_none=True)
+        output = model(tensor)
+        loss = F.mse_loss(output, tensor)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
+        loss_value = float(loss.item())
+    model.eval()
+    return loss_value
 
 
 def score_access_event(session: Session, event: AccessEvent) -> tuple[int, list[str]]:
@@ -204,8 +226,29 @@ def score_access_event(session: Session, event: AccessEvent) -> tuple[int, list[
         )
     ).all()
     features = _build_feature_vector(events, event)
-    score, reasons = _score_features(state, features)
-    _update_state(state, features, score, reasons, _ensure_aware(event.timestamp))
+    tensor, z_scores = _normalized_features(state, features)
+
+    model = load_model(state.model_state_blob, input_dim=len(FEATURE_SPECS))
+    with torch.no_grad():
+        reconstruction = model(tensor)
+        residuals = tensor - reconstruction
+        reconstruction_error = float(torch.mean(residuals.pow(2)).item())
+    score = _score_from_error(reconstruction_error)
+    reasons = _reason_codes(z_scores, residuals)
+    if score > 0 and not reasons:
+        reasons = ["model_deviation"]
+
+    # Only learn from low-risk samples so the model does not absorb obvious spikes.
+    should_train = state.sample_count < WARMUP_SAMPLES or score < TRAINING_SCORE_CUTOFF
+    if should_train:
+        _train_model(model, tensor)
+        state.model_state_blob = dump_model(model)
+        state.updated_at = datetime.now(timezone.utc)
+
+    state.latest_feature_vector = features
+    state.latest_score = score
+    state.latest_reasons = reasons
+    _update_state_stats(state, features, _ensure_aware(event.timestamp))
     session.add(state)
     return score, reasons
 

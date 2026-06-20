@@ -6,6 +6,7 @@ alembic
 asyncpg
 cryptography
 python-dotenv
+numpy
+torch
 pytest
 httpx
-

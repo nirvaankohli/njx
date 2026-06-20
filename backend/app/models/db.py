@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -134,6 +134,7 @@ class AnomalyModelStateORM(Base):
     sample_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     feature_means: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     feature_m2: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    model_state_blob: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     latest_feature_vector: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     latest_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     latest_reasons: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
