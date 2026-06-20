@@ -147,8 +147,8 @@ export default function DocumentDetailPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Tenant" value={doc.tenant_id} />
               <Field label="Status" value={doc.status ?? "active"} />
-              <Field label="Fingerprint" value={doc.content_fingerprint} mono />
-              <Field label="Signers" value={doc.signer_refs.join(", ") || "—"} mono />
+              <Field label="Fingerprint" value={doc.content_fingerprint} />
+              <Field label="Signers" value={doc.signer_refs.join(", ") || "—"} />
               <Field label="Source file" value={session.activeDocument?.sourceFileName ?? "—"} />
               <Field
                 label="Source type"
@@ -172,7 +172,7 @@ export default function DocumentDetailPage() {
               <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Embedded AI tags</div>
               <div className="flex flex-wrap gap-2">
                 {doc.embedded_ai_tags.map((tag) => (
-                  <Badge key={tag} className="font-mono text-[10px]">
+                  <Badge key={tag} className="text-[10px] font-medium tracking-[0.08em]">
                     {tag}
                   </Badge>
                 ))}
@@ -270,7 +270,7 @@ export default function DocumentDetailPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-[10px]">
+                      <Badge variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
                         {event.event}
                       </Badge>
                       <span className="text-sm">{event.actor_org}</span>
@@ -279,9 +279,9 @@ export default function DocumentDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2 text-xs text-muted-foreground">
-                  <div className="font-mono break-all">key={event.actor_key_id}</div>
-                  <div className="font-mono break-all">sig={event.signature}</div>
-                  <div className="font-mono break-all">manifest={event.manifest_hash}</div>
+                  <div className="break-all text-sm text-foreground">key={event.actor_key_id}</div>
+                  <div className="break-all text-sm text-foreground">sig={event.signature}</div>
+                  <div className="break-all text-sm text-foreground">manifest={event.manifest_hash}</div>
                 </CardContent>
               </Card>
             </div>
@@ -293,11 +293,11 @@ export default function DocumentDetailPage() {
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</div>
+      <div className="mt-1 break-all text-sm text-foreground">{value}</div>
     </div>
   );
 }

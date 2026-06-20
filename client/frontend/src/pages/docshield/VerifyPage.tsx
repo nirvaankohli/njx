@@ -138,9 +138,9 @@ export default function VerifyPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Row label="Tenant" value={session.tenantName} />
-            <Row label="Document ID" value={session.activeDocument?.documentId ?? "None"} mono />
-            <Row label="Manifest hash" value={session.activeDocument?.manifestHash ?? "None"} mono />
-            <Row label="History tip" value={session.activeDocument?.historyTip ?? "None"} mono />
+            <Row label="Document ID" value={session.activeDocument?.documentId ?? "None"} />
+            <Row label="Manifest hash" value={session.activeDocument?.manifestHash ?? "None"} />
+            <Row label="History tip" value={session.activeDocument?.historyTip ?? "None"} />
             <div className="rounded-xl border border-border bg-muted/20 p-4 text-xs text-muted-foreground">
               The backend uses the stored signed manifest and history to validate the fingerprint and policy decision.
             </div>
@@ -200,7 +200,7 @@ function VerifyResultCard({ result }: { result: VerifyResult }) {
           <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Reasons</div>
           <div className="flex flex-wrap gap-2">
             {result.reasons.map((reason) => (
-              <Badge key={reason} variant="outline" className="font-mono text-[10px]">
+              <Badge key={reason} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
                 {reason}
               </Badge>
             ))}
@@ -222,11 +222,11 @@ function ResultBadge({ label, value }: { label: string; value: boolean }) {
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</div>
+      <div className="mt-1 break-all text-xs text-foreground">{value}</div>
     </div>
   );
 }

@@ -123,9 +123,9 @@ export default function DocumentDownloadPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2">
-              <InfoRow label="Document ID" value={active.documentId} mono />
-              <InfoRow label="Fingerprint" value={active.contentFingerprint} mono />
-              <InfoRow label="Manifest hash" value={active.manifestHash} mono />
+              <InfoRow label="Document ID" value={active.documentId} />
+              <InfoRow label="Fingerprint" value={active.contentFingerprint} />
+              <InfoRow label="Manifest hash" value={active.manifestHash} />
               <InfoRow label="History events" value={`${active.history.length}`} />
             </div>
 
@@ -200,11 +200,11 @@ export default function DocumentDownloadPage() {
   );
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/70 p-3">
       <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-sm ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</div>
+      <div className="mt-1 break-all text-sm text-foreground">{value}</div>
     </div>
   );
 }

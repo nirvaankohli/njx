@@ -115,7 +115,7 @@ export default function SetupPage() {
         <AlertTitle>Signing stays local in dev</AlertTitle>
         <AlertDescription>
           This page generates a local Ed25519 keypair, stores the private key in your browser, and uses the public key
-          for <Badge variant="outline" className="mx-1 font-mono text-[10px]">POST /setup</Badge>. The document and
+          for <Badge variant="outline" className="mx-1 text-[10px] font-medium tracking-[0.08em]">POST /setup</Badge>. The document and
           verify flows reuse the same keypair.
         </AlertDescription>
       </Alert>
@@ -164,7 +164,7 @@ export default function SetupPage() {
                   value={policyTemplates}
                   onChange={(e) => setPolicyTemplates(e.target.value)}
                   rows={10}
-                  className="font-mono text-xs"
+                  className="text-xs"
                 />
               </div>
 
@@ -175,7 +175,7 @@ export default function SetupPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Public key</Label>
-                  <Input value={publicKey} readOnly className="font-mono text-xs" />
+                  <Input value={publicKey} readOnly className="text-xs" />
                 </div>
               </div>
 
@@ -208,7 +208,7 @@ export default function SetupPage() {
             </div>
             <div>
               <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Dev key ID</div>
-              <div className="mt-1 text-sm font-mono">{publicKeyId}</div>
+              <div className="mt-1 break-all text-sm font-medium">{publicKeyId}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</div>

@@ -278,7 +278,7 @@ export default function DocumentsPage() {
             <CardDescription>Drop a file or choose one from your device.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-0">
-            <div className="space-y-8">
+            <div className="space-y-12">
               <label
                 htmlFor="doc-upload"
                 className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
@@ -329,7 +329,7 @@ export default function DocumentsPage() {
                   animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, height: "auto" }}
                   exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10, height: 0 }}
                   transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
-                  className="mt-10 overflow-hidden rounded-xl border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
+                  className="mt-12 overflow-hidden rounded-xl border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
                 >
                   <div className="border-b border-border/60 bg-background/60 px-5 py-4">
                     <div className="flex items-center justify-between gap-3">
@@ -355,7 +355,7 @@ export default function DocumentsPage() {
                           {ALL_TAGS.map((tag) => (
                             <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
                               <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
-                              <span className="font-mono text-xs">{tag}</span>
+                              <span className="text-xs font-medium tracking-[0.08em]">{tag}</span>
                             </label>
                           ))}
                         </div>
@@ -453,9 +453,9 @@ export default function DocumentsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <SignedField label="Document ID" value={signedDocument.documentId} mono />
-                <SignedField label="Fingerprint" value={signedDocument.fingerprint} mono />
-                <SignedField label="Signed at" value={signedDocument.createdAt} mono />
+                <SignedField label="Document ID" value={signedDocument.documentId} />
+                <SignedField label="Fingerprint" value={signedDocument.fingerprint} />
+                <SignedField label="Signed at" value={signedDocument.createdAt} />
                 <SignedField label="File name" value={signedDocument.fileName} />
               </div>
               <div className="flex flex-wrap gap-2">
@@ -502,7 +502,7 @@ export default function DocumentsPage() {
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {doc.embedded_ai_tags.slice(0, 3).map((tag) => (
-                    <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                    <Badge key={tag} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
                       {tag}
                     </Badge>
                   ))}
@@ -550,11 +550,11 @@ function AccessChoice({
   );
 }
 
-function SignedField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function SignedField({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/70 p-3">
       <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-sm ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</div>
+      <div className="mt-1 break-all text-sm text-foreground">{value}</div>
     </div>
   );
 }
