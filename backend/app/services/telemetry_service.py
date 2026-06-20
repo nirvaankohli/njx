@@ -7,7 +7,7 @@ from app.models.db import AccessEventORM, DocumentORM, PublicKeyORM
 from app.models.dto import AccessEvent, AccessEventResponse, ActivityItem, AlertItem, DashboardResponse, RevocationSummary, VerificationSummary
 from app.services.audit_service import log_action
 from app.services.errors import NotFoundError
-from app.services.risk_service import compute_risk_signals, severity_for_score
+from app.services.risk_service import compute_risk_signals, score_access_event, severity_for_score
 
 
 def record_access_event(session: Session, event: AccessEvent) -> AccessEventResponse:
@@ -31,7 +31,7 @@ def record_access_event(session: Session, event: AccessEvent) -> AccessEventResp
     )
     session.add(access_event)
     session.flush()
-    score, reasons = compute_risk_signals(session, event.tenant_id, event.document_id)
+    score, reasons = score_access_event(session, event)
     access_event.risk_score = score
     access_event.risk_reasons = reasons
     log_action(

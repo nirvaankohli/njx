@@ -82,6 +82,7 @@ class DocumentORM(Base):
     events: Mapped[list["SignatureHistoryEventORM"]] = relationship(back_populates="document", cascade="all, delete-orphan", order_by="SignatureHistoryEventORM.timestamp")
     access_events: Mapped[list["AccessEventORM"]] = relationship(back_populates="document", cascade="all, delete-orphan", order_by="AccessEventORM.timestamp")
     verification_logs: Mapped[list["VerificationLogORM"]] = relationship(back_populates="document", cascade="all, delete-orphan", order_by="VerificationLogORM.verified_at")
+    anomaly_state: Mapped["AnomalyModelStateORM"] = relationship(back_populates="document", cascade="all, delete-orphan", uselist=False)
 
 
 class SignatureHistoryEventORM(Base):
@@ -125,6 +126,23 @@ class AccessEventORM(Base):
     document: Mapped[DocumentORM] = relationship(back_populates="access_events")
 
 
+class AnomalyModelStateORM(Base):
+    __tablename__ = "anomaly_model_states"
+
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id"), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.tenant_id"), nullable=False)
+    sample_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    feature_means: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    feature_m2: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    latest_feature_vector: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    latest_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    latest_reasons: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    last_scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    document: Mapped[DocumentORM] = relationship(back_populates="anomaly_state")
+
+
 class VerificationLogORM(Base):
     __tablename__ = "verification_logs"
 
@@ -152,4 +170,3 @@ class AuditLogORM(Base):
     action: Mapped[str] = mapped_column(String, nullable=False)
     details: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-
