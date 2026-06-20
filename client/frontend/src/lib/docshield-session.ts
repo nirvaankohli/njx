@@ -18,7 +18,8 @@ export type DocShieldSession = {
     sourceFileName?: string;
     sourceFileType?: string;
     sourceFileSize?: number;
-    accessPasswordRequired?: boolean;
+    accessAnyoneWithLink?: boolean;
+    accessMethod?: "password" | "organization" | null;
     accessPasswordHash?: string | null;
   } | null;
 };

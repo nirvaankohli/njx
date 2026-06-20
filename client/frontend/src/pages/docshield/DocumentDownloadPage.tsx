@@ -15,14 +15,18 @@ export default function DocumentDownloadPage() {
   const { id = "" } = useParams();
   const documentId = decodeURIComponent(id);
   const active = session.activeDocument?.documentId === documentId ? session.activeDocument : null;
-  const passwordRequired = active?.accessPasswordRequired ?? false;
+  const anyoneWithLink = active?.accessAnyoneWithLink ?? true;
+  const accessMethod = active?.accessMethod ?? (anyoneWithLink ? null : "password");
+  const passwordRequired = !anyoneWithLink && accessMethod === "password";
+  const organizationRequired = !anyoneWithLink && accessMethod === "organization";
+  const organizationAllowed = organizationRequired && !!active && session.tenantId === active.signedManifest.manifest.tenant_id;
   const [password, setPassword] = useState("");
-  const [unlocked, setUnlocked] = useState(!passwordRequired);
+  const [unlocked, setUnlocked] = useState(anyoneWithLink || organizationAllowed);
 
   useEffect(() => {
     setPassword("");
-    setUnlocked(!passwordRequired);
-  }, [documentId, passwordRequired]);
+    setUnlocked(anyoneWithLink || organizationAllowed);
+  }, [documentId, anyoneWithLink, organizationAllowed]);
 
   const packagePayload = useMemo(
     () =>
@@ -37,14 +41,28 @@ export default function DocumentDownloadPage() {
             history: active.history,
             manifest_hash: active.manifestHash,
             document_id: active.documentId,
-            password_required: passwordRequired,
+            access_method: accessMethod ?? "anyone_with_link",
           }
         : null,
-    [active, documentId, passwordRequired],
+    [active, documentId, accessMethod],
   );
 
   async function unlock() {
-    if (!active || !passwordRequired) {
+    if (!active) {
+      setUnlocked(true);
+      return;
+    }
+    if (anyoneWithLink) {
+      setUnlocked(true);
+      return;
+    }
+    if (organizationRequired) {
+      if (!organizationAllowed) {
+        toast.error("Organization access required", {
+          description: "Sign into the right organization to continue.",
+        });
+        return;
+      }
       setUnlocked(true);
       return;
     }
@@ -59,7 +77,7 @@ export default function DocumentDownloadPage() {
   }
 
   function handleDownload() {
-    if (!active || !packagePayload || (passwordRequired && !unlocked)) return;
+    if (!active || !packagePayload || (!anyoneWithLink && !unlocked)) return;
     const sourceName = active.sourceFileName ?? documentId;
     const downloadName = `${sourceName.replace(/\.[^.]+$/, "")}.docshield.json`;
     const blob = new Blob([JSON.stringify(packagePayload, null, 2)], { type: "application/json" });
@@ -130,14 +148,32 @@ export default function DocumentDownloadPage() {
                   </Button>
                 </div>
               </div>
+            ) : organizationRequired && !unlocked ? (
+              <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <ShieldCheck className="h-4 w-4" />
+                  Organization sign-in required
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Sign into {active.signedManifest.manifest.tenant_id} to open this file.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => void unlock()}>
+                    <ShieldCheck className="mr-1.5 h-4 w-4" />
+                    Check organization access
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                The download contains the signed manifest and signing history.
+                {anyoneWithLink
+                  ? "Anyone with the link can open this download."
+                  : "The download contains the signed manifest and signing history."}
               </div>
             )}
 
             <div className="flex flex-wrap gap-2">
-              <Button onClick={handleDownload} disabled={passwordRequired && !unlocked}>
+              <Button onClick={handleDownload} disabled={!anyoneWithLink && !unlocked}>
                 <Download className="mr-1.5 h-4 w-4" />
                 Download signed package
               </Button>
