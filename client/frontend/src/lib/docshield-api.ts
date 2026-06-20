@@ -130,6 +130,7 @@ export type VerifyResult = {
     | "unknown_document"
     | "invalid_signature";
   document_id: string;
+  issuer_key_id: string | null;
   fingerprint_match: boolean;
   manifest_signature_valid: boolean;
   signature_chain_valid: boolean;
@@ -267,6 +268,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  verifyFile: async (file: File, operation = "authenticity_check") => {
+    const response = await fetch(buildUrl("/verify/file", { operation, app: "docshield_web" }), {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText);
+      throw new ApiError(response.status, message || `Request failed: ${response.status}`);
+    }
+    return (await response.json()) as VerifyResult;
+  },
   logAccessEvent: (event: AccessEvent) =>
     request<AccessEventResponse>(`/access-events`, {
       method: "POST",
