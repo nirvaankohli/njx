@@ -61,6 +61,7 @@ export default function DocumentsPage() {
   const [tenantId, setTenantId] = useState(session.tenantId);
   const [issuerKeyId, setIssuerKeyId] = useState(session.issuerKeyId);
   const [fingerprint, setFingerprint] = useState(session.activeDocument?.contentFingerprint ?? "");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [actorOrg, setActorOrg] = useState(session.tenantName || "SupplierCo");
   const [signerRefs, setSignerRefs] = useState(issuerKeyId);
   const [blockAi, setBlockAi] = useState(true);
@@ -71,6 +72,18 @@ export default function DocumentsPage() {
 
   function toggleTag(tag: AiTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]));
+  }
+
+  async function selectDocument(file: File | null) {
+    setDocumentFile(file);
+    if (!file) {
+      setFingerprint("");
+      return;
+    }
+    if (!docId) {
+      setDocId(`doc_${file.name.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").toLowerCase()}`);
+    }
+    setFingerprint(await sha256Hex(await file.arrayBuffer()));
   }
 
   async function submit(e: React.FormEvent) {
