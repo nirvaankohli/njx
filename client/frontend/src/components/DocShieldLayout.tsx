@@ -3,8 +3,10 @@ import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
 import { Shield, LayoutDashboard, FileText, ShieldCheck, Activity, Settings2, Download, BookOpen, Building2, LogOut, CreditCard, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import { frontendApi, type FrontendCompanySettings } from "@/lib/frontend-api";
+import { getDocShieldSession } from "@/lib/docshield-session";
+import { Button } from "@/components/ui/button";
+import { api } from "@/lib/docshield-api";
 
 const nav = [
   { to: "/app", end: true, label: "Dashboard", icon: LayoutDashboard },
@@ -12,25 +14,20 @@ const nav = [
   { to: "/app/verify", label: "Verify", icon: ShieldCheck },
   { to: "/app/access-events", label: "Access events", icon: Activity },
   { to: "/app/reference", label: "Reference", icon: BookOpen },
-  { to: "/app/setup", label: "Tenant setup", icon: Settings2 },
+  { to: "/app/setup", label: "Organization setup", icon: Settings2 },
 ];
-
-type CompanySettings = Tables<"company_settings">;
 
 export default function DocShieldLayout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [company, setCompany] = useState<CompanySettings | null>(null);
+  const [company, setCompany] = useState<FrontendCompanySettings>(null);
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("company_settings")
-      .select("*")
-      .eq("user_id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) setCompany(data as CompanySettings);
+    frontendApi
+      .companySettings()
+      .then((data) => {
+        if (data && data.user_id === user.id) setCompany(data);
       });
   }, [user]);
 
@@ -107,24 +104,28 @@ export default function DocShieldLayout() {
             <CreditCard className="h-4 w-4" />
             View plan
           </NavLink>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              window.open("/api/audit-export", "_blank");
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-sidebar-foreground"
+            onClick={() => {
+              const session = getDocShieldSession();
+              window.open(
+                api.auditExportUrl(session.tenantId, session.activeDocument?.documentId ?? "doc_7f92ab31"),
+                "_blank",
+              );
             }}
-            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-sidebar-foreground transition-colors"
           >
             <Download className="h-4 w-4" />
             Export audit log
-          </a>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
             onClick={handleSignOut}
-            className="w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground transition-colors"
+            className="w-full justify-start gap-3 px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
           >
             <LogOut className="h-4 w-4" />
             Sign out
-          </button>
+          </Button>
         </div>
 
       </aside>
@@ -136,4 +137,3 @@ export default function DocShieldLayout() {
     </div>
   );
 }
-

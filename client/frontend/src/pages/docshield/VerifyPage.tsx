@@ -1,53 +1,152 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { AlertCircle, Loader2, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
 import { api, type VerifyResult } from "@/lib/docshield-api";
-import { mockVerify } from "@/lib/docshield-mock";
+import { getDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+
+const OPERATIONS = [
+  { value: "external_ai_upload", label: "external_ai_upload" },
+  { value: "direct_share", label: "direct_share" },
+  { value: "download", label: "download" },
+];
 
 export default function VerifyPage() {
-  const [docId, setDocId] = useState("doc_7f92ab31");
-  const [fp, setFp] = useState("sha256:4b9a…e21f");
+  const session = getDocShieldSession();
+  const activeDocumentId = session.activeDocument?.documentId ?? null;
+  const activeDocumentFingerprint = session.activeDocument?.contentFingerprint ?? null;
+  const [docId, setDocId] = useState(session.activeDocument?.documentId ?? "doc_7f92ab31");
+  const [fp, setFp] = useState(session.activeDocument?.contentFingerprint ?? "sha256:4b9a…e21f");
+  const [operation, setOperation] = useState("external_ai_upload");
+  const [appName, setAppName] = useState("reference_ai_gateway");
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // The persisted session is rebuilt on every render, so we track the active
+  // document through stable scalar fields instead of the object reference.
+  useEffect(() => {
+    if (session.activeDocument) {
+      setDocId(session.activeDocument.documentId);
+      setFp(session.activeDocument.contentFingerprint);
+    }
+  }, [activeDocumentId, activeDocumentFingerprint]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!session.activeDocument) {
+      toast.error("Upload a document first", { description: "The verify page reuses the latest signed manifest and history." });
+      return;
+    }
+
     setLoading(true);
     try {
-      const r = await api.verify({ document_id: docId, content_fingerprint: fp });
-      setResult(r);
-    } catch {
-      setResult(mockVerify(docId, fp));
+      const response = await api.verify({
+        document_id: docId,
+        signed_manifest: session.activeDocument.signedManifest,
+        history: session.activeDocument.history,
+        computed_content_fingerprint: fp,
+        usage_context: {
+          operation,
+          app: appName,
+        },
+      });
+      setResult(response);
+    } catch (err) {
+      setResult(null);
+      toast.error("Verification failed", { description: err instanceof Error ? err.message : "POST /verify not reachable" });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <header>
+    <div className="space-y-6 max-w-5xl">
+      <header className="space-y-2">
+        <Badge variant="secondary" className="gap-1">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Backend verify
+        </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Verify</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Send a document ID and locally-computed fingerprint to <code>POST /verify</code>.
+        <p className="text-sm text-muted-foreground">
+          Uses the last uploaded signed manifest and history chain, then posts the exact verification DTO the backend expects.
         </p>
       </header>
 
-      <form onSubmit={submit} className="rounded-lg border border-border bg-card p-6 space-y-4">
-        <div className="space-y-2">
-          <Label>Document ID</Label>
-          <Input value={docId} onChange={(e) => setDocId(e.target.value)} required />
-        </div>
-        <div className="space-y-2">
-          <Label>Content fingerprint (computed inside your environment)</Label>
-          <Input value={fp} onChange={(e) => setFp(e.target.value)} required />
-        </div>
-        <div className="flex justify-end">
-          <Button type="submit" disabled={loading}>{loading ? "Verifying…" : "Verify"}</Button>
-        </div>
-      </form>
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Keep the active document in sync</AlertTitle>
+        <AlertDescription>
+          Upload a document first so this page can reuse its signed manifest, history, and manifest hash.
+        </AlertDescription>
+      </Alert>
+
+      <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Verification request</CardTitle>
+            <CardDescription>Minimal controls, but the payload still matches the backend contract.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={submit} className="space-y-5">
+              <div className="space-y-2">
+                <Label>Document ID</Label>
+                <Input value={docId} onChange={(e) => setDocId(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Computed content fingerprint</Label>
+                <Input value={fp} onChange={(e) => setFp(e.target.value)} required />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Usage context</Label>
+                  <Select value={operation} onValueChange={setOperation}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OPERATIONS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>App</Label>
+                  <Input value={appName} onChange={(e) => setAppName(e.target.value)} />
+                </div>
+              </div>
+              <Button type="submit" disabled={loading || !session.activeDocument} className="w-full">
+                {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Verify document
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Latest signed document</CardTitle>
+            <CardDescription>This is what gets sent as the nested manifest and history chain.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <Row label="Tenant" value={session.tenantName} />
+            <Row label="Document ID" value={session.activeDocument?.documentId ?? "None"} mono />
+            <Row label="Manifest hash" value={session.activeDocument?.manifestHash ?? "None"} mono />
+            <Row label="History tip" value={session.activeDocument?.historyTip ?? "None"} mono />
+            <div className="rounded-xl border border-border bg-muted/20 p-4 text-xs text-muted-foreground">
+              The backend uses the stored signed manifest and history to validate the fingerprint and policy decision.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {result && <VerifyResultCard result={result} />}
     </div>
@@ -55,57 +154,79 @@ export default function VerifyPage() {
 }
 
 function VerifyResultCard({ result }: { result: VerifyResult }) {
-  const Icon = result.revoked ? ShieldX : result.tampered ? ShieldAlert : result.authentic ? ShieldCheck : ShieldAlert;
-  const tone = result.revoked
-    ? "text-destructive"
-    : result.tampered
-    ? "text-warning"
-    : result.authentic
-    ? "text-success"
-    : "text-muted-foreground";
-  const headline = result.revoked
-    ? "Revoked"
-    : result.tampered
-    ? "Tampered"
-    : result.authentic
-    ? "Authentic"
-    : "Unknown";
+  const Icon = result.revoked ? ShieldX : result.status === "valid" ? ShieldCheck : ShieldAlert;
+  const tone =
+    result.revoked || result.status === "tampered"
+      ? "text-destructive"
+      : result.status === "valid"
+        ? "text-emerald-500"
+        : "text-muted-foreground";
 
   return (
-    <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-      <div className="flex items-center gap-3">
-        <Icon className={`h-6 w-6 ${tone}`} />
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Icon className={`h-5 w-5 ${tone}`} />
+          {result.status.replace("_", " ")}
+        </CardTitle>
+        <CardDescription>{result.document_id}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ResultBadge label="Fingerprint match" value={result.fingerprint_match} />
+          <ResultBadge label="Manifest signature" value={result.manifest_signature_valid} />
+          <ResultBadge label="History chain" value={result.signature_chain_valid} />
+          <ResultBadge label="Revoked" value={result.revoked} />
+        </div>
+
         <div>
-          <div className={`text-lg font-semibold ${tone}`}>{headline}</div>
-          <div className="text-xs text-muted-foreground font-mono">{result.document_id}</div>
+          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Policy decision</div>
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">{result.policy_decision.operation}</div>
+                <div className="text-xs text-muted-foreground">
+                  {result.policy_decision.allowed ? "Allowed" : "Blocked"}
+                </div>
+              </div>
+              <Badge variant={result.policy_decision.allowed ? "default" : "destructive"}>
+                {result.policy_decision.reason ?? "No reason"}
+              </Badge>
+            </div>
+          </div>
         </div>
-      </div>
-      <div>
-        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Reason codes</div>
-        <div className="flex flex-wrap gap-2">
-          {result.reason_codes.map((c) => (
-            <Badge key={c} variant="secondary" className="font-mono text-[10px]">{c}</Badge>
-          ))}
+
+        <div>
+          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Reasons</div>
+          <div className="flex flex-wrap gap-2">
+            {result.reasons.map((reason) => (
+              <Badge key={reason} variant="outline" className="font-mono text-[10px]">
+                {reason}
+              </Badge>
+            ))}
+          </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResultBadge({ label, value }: { label: string; value: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-4">
+      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-sm font-medium ${value ? "text-emerald-500" : "text-destructive"}`}>
+        {value ? "Pass" : "Fail"}
       </div>
-      <div>
-        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Enforced policy</div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <Badge variant="outline">external_ai: {result.policy.external_ai_upload}</Badge>
-          <Badge variant="outline">secure_link: {String(result.policy.secure_link_required)}</Badge>
-          <Badge variant="outline">forwarding: {result.policy.forwarding}</Badge>
-          <Badge variant="outline">public_sharing: {result.policy.public_sharing}</Badge>
-        </div>
-      </div>
-      <div>
-        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Embedded AI tags</div>
-        <div className="flex flex-wrap gap-2">
-          {result.embedded_ai_tags.map((t) => (
-            <Badge key={t} className="font-mono text-[10px]">{t}</Badge>
-          ))}
-          {result.embedded_ai_tags.length === 0 && <span className="text-xs text-muted-foreground">None</span>}
-        </div>
-      </div>
+    </div>
+  );
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className={`mt-1 ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</div>
     </div>
   );
 }

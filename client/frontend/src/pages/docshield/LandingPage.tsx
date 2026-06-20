@@ -1,226 +1,368 @@
 import { Link } from "react-router-dom";
-import { Fingerprint, FileSignature, Eye, Lock, ArrowRight } from "lucide-react";
+import { ArrowRight, ShieldCheck, FileSignature, Eye, Lock, Sparkles, Moon, Sun, CircleCheckBig } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
-import heroAsset from "@/assets/docshield-hero-bg-v2.jpg.asset.json";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion, useReducedMotion } from "framer-motion";
+import { useTheme } from "next-themes";
+import { useMemo } from "react";
 
 const features = [
   {
-    icon: Fingerprint,
-    title: "Zero-content fingerprinting",
-    body: "Hashes and signed manifests stay in your environment. DocShield never sees raw PDFs.",
+    icon: FileSignature,
+    title: "Signed manifests",
+    body: "Register a manifest, issue an initial history event, and keep the chain verifiable from day one.",
   },
   {
-    icon: FileSignature,
-    title: "Embedded AI policy tags",
-    body: "Attach machine-readable rules: No External AI, Secure Link Only, No Forwarding.",
+    icon: ShieldCheck,
+    title: "Policy-aware verification",
+    body: "Check fingerprint integrity, manifest signatures, and policy decisions in one screen.",
   },
   {
     icon: Eye,
-    title: "Anomaly dashboard",
-    body: "Detect off-hours access, geographic outliers, and revoked-document attempts.",
+    title: "Access telemetry",
+    body: "Track open, download, and failure events so risk signals show up before they become incidents.",
   },
   {
     icon: Lock,
-    title: "Layered signing history",
-    body: "Append-only chain of issuer, sender, recipient, approver, confirmer signatures.",
+    title: "Audit exports",
+    body: "Pull manifest, history, telemetry, and verification summaries into one exportable package.",
   },
 ];
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.12 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: {
+const motions = {
+  hidden: { opacity: 0, y: 22 },
+  visible: (index: number) => ({
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
-  },
+    transition: {
+      duration: 0.55,
+      delay: index * 0.08,
+      ease: [0.16, 1, 0.3, 1] as const,
+    },
+  }),
 };
 
-
-export default function LandingPage() {
-  const heroRef = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.12]);
+function GrainientBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
+  const layers = useMemo(
+    () => [
+      {
+        background:
+          "radial-gradient(circle at 20% 22%, rgba(255,255,255,0.20), transparent 24%), radial-gradient(circle at 78% 30%, rgba(93, 76, 255, 0.28), transparent 22%), radial-gradient(circle at 44% 68%, rgba(0, 200, 155, 0.16), transparent 26%)",
+        opacity: 0.95,
+      },
+      {
+        background:
+          "linear-gradient(112deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.0) 42%, rgba(255,255,255,0.09) 68%, rgba(255,255,255,0.0) 100%)",
+        opacity: 0.8,
+      },
+      {
+        background:
+          "radial-gradient(circle at 45% 46%, rgba(255,255,255,0.08), rgba(255,255,255,0.03) 30%, transparent 70%)",
+        opacity: 1,
+      },
+    ],
+    [],
+  );
 
   return (
-    <div className="min-h-screen text-foreground overflow-x-hidden">
-      <header className="fixed top-0 inset-x-0 z-50 border-b border-border/60 backdrop-blur-md bg-background/40">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="font-semibold tracking-tight text-lg">DocShield</span>
-          <nav className="hidden md:flex gap-6 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-            <a href="#architecture" className="hover:text-foreground transition-colors">Architecture</a>
-            <a href="#tiers" className="hover:text-foreground transition-colors">Tiers</a>
+    <div className="absolute inset-0 overflow-hidden bg-[#050505]">
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 20% 20%, rgba(88, 92, 255, 0.22), transparent 34%), radial-gradient(circle at 80% 35%, rgba(32, 196, 167, 0.14), transparent 28%), radial-gradient(circle at 50% 85%, rgba(255,255,255,0.08), transparent 28%), linear-gradient(112deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.60) 38%, rgba(0,0,0,0.90) 100%)",
+        }}
+      />
+      <motion.div
+        aria-hidden
+        className="absolute inset-[-8%] will-change-transform"
+        animate={reducedMotion ? undefined : { scale: [1, 1.045, 1], rotate: [0, 4, 0] }}
+        transition={reducedMotion ? undefined : { duration: 28, repeat: Infinity, ease: "linear" }}
+      >
+        {layers.map((layer, index) => (
+          <motion.div
+            key={index}
+            className="absolute inset-0 mix-blend-screen"
+            style={layer}
+            animate={reducedMotion ? undefined : { x: [0, index % 2 === 0 ? 22 : -16, 0], y: [0, index === 1 ? -18 : 14, 0] }}
+            transition={reducedMotion ? undefined : { duration: 18 + index * 2.5, repeat: Infinity, ease: "linear" }}
+          />
+        ))}
+      </motion.div>
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-[0.18] mix-blend-soft-light"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+          backgroundSize: "64px 64px",
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-[0.18]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at center, rgba(255,255,255,0.05) 0.5px, transparent 0.5px)",
+          backgroundSize: "3px 3px",
+          mixBlendMode: "overlay",
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/90" />
+    </div>
+  );
+}
+
+export default function LandingPage() {
+  const { theme, setTheme } = useTheme();
+  const reducedMotion = useReducedMotion() ?? false;
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-background/50 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-sm font-semibold text-white/90">
+              D
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold tracking-[0.14em] uppercase text-white">DocShield</div>
+              <div className="text-[11px] text-white/[0.55]">Signed documents, live in dev</div>
+            </div>
+          </Link>
+
+          <nav className="hidden items-center gap-6 text-sm text-white/[0.65] md:flex">
+            <a href="#features" className="transition-colors hover:text-white">Features</a>
+            <a href="#workflow" className="transition-colors hover:text-white">Workflow</a>
+            <a href="#reference" className="transition-colors hover:text-white">API</a>
           </nav>
-          <Button asChild size="sm">
-            <Link to="/app">Get started <ArrowRight className="ml-1 h-4 w-4" /></Link>
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              aria-label="Toggle theme"
+            >
+              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            </Button>
+            <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+              <Link to="/auth">Sign in</Link>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <section
-        ref={heroRef}
-        className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16 bg-background"
-      >
-        {/* Background image with parallax */}
-        <motion.div
-          aria-hidden
-          className="absolute inset-0 -top-16 z-0 pointer-events-none"
-          style={{ y: heroY, opacity: heroOpacity, scale: heroScale }}
-        >
-          <img
-            src={heroAsset.url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover scale-110"
-            width={1920}
-            height={1080}
-          />
-          <div className="absolute inset-0 bg-background/30" />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background" />
-        </motion.div>
-
-        {/* Subtle grid overlay */}
-        <div
-          aria-hidden
-          className="absolute inset-0 z-[1] pointer-events-none opacity-[0.05]"
-          style={{
-            backgroundImage:
-              "linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)",
-            backgroundSize: "64px 64px",
-            maskImage: "radial-gradient(ellipse at center, black 30%, transparent 70%)",
-            WebkitMaskImage: "radial-gradient(ellipse at center, black 30%, transparent 70%)",
-          }}
-        />
-
-
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-28 md:py-40 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <h1 className="text-5xl md:text-7xl font-semibold tracking-tight max-w-4xl mx-auto leading-[1.05]">
-              A zero-content passport for every document you send.
-            </h1>
-          </motion.div>
-          <motion.p
-            className="mt-8 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          >
-            DocShield gives enterprises a way to make PDFs verifiable, policy-aware, and trackable — without
-            sending document content to DocShield.
-          </motion.p>
-          <motion.div
-            className="mt-12 flex items-center justify-center gap-3"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <Button asChild size="lg">
-              <Link to="/app">Open the console <ArrowRight className="ml-1 h-4 w-4" /></Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <a href="#features">See how it works</a>
-            </Button>
-          </motion.div>
-        </div>
-      </section>
-
-      <section id="features" className="relative border-t border-border bg-secondary/20">
-        <div className="max-w-6xl mx-auto px-6 py-24">
-          <motion.h2
-            className="text-2xl md:text-3xl font-semibold tracking-tight mb-14 max-w-xl"
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.4 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          >
-            Four primitives that follow a document through its lifecycle.
-          </motion.h2>
-          <motion.div
-            className="grid sm:grid-cols-2 gap-6"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-          >
-            {features.map((f) => (
-              <motion.div
-                key={f.title}
-                variants={itemVariants}
-                className="group rounded-lg border border-border bg-card p-6 hover:border-primary/40 transition-colors"
+      <main>
+        <section className="relative isolate min-h-screen overflow-hidden pt-16">
+          <GrainientBackdrop reducedMotion={reducedMotion} />
+          <div className="relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-12 px-6 py-16 md:grid-cols-[1.15fr_0.85fr] md:py-24">
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={motions}
+              custom={0}
+              className="max-w-3xl"
+            >
+            <Badge className="mb-5 border border-white/15 bg-white/[0.08] px-3 py-1 text-[11px] font-medium tracking-[0.16em] text-white/[0.85]">
+                <Sparkles className="mr-1 h-3.5 w-3.5" />
+                React Bits Grainient hero
+              </Badge>
+              <motion.h1
+                variants={motions}
+                custom={1}
+                className="text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl"
               >
-                <f.icon className="h-5 w-5 text-primary mb-4 group-hover:scale-110 transition-transform" />
-                <div className="font-medium mb-1">{f.title}</div>
-                <p className="text-sm text-muted-foreground">{f.body}</p>
+                Make every document feel signed, secure, and ready for the first dev demo.
+              </motion.h1>
+              <motion.p
+                variants={motions}
+                custom={2}
+                className="mt-6 max-w-2xl text-pretty text-base leading-7 text-white/[0.72] sm:text-lg"
+              >
+                DocShield keeps manifests, histories, verification, telemetry, and exports in one MVP flow. The new
+                hero background gives the landing page some atmosphere, while the backend contract stays honest.
+              </motion.p>
+              <motion.div variants={motions} custom={3} className="mt-8 flex flex-wrap gap-3">
+                <Button asChild size="lg" className="h-12 px-5 bg-white text-black hover:bg-white/90">
+                  <Link to="/app">
+                    Open the console
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="h-12 px-5 border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                >
+                  <a href="#workflow">See the workflow</a>
+                </Button>
               </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
+            </motion.div>
 
-      <section id="tiers" className="border-t border-border">
-        <div className="max-w-6xl mx-auto px-6 py-24 grid md:grid-cols-2 gap-6">
-          <motion.div
-            className="rounded-lg border border-border p-8"
-            initial={{ opacity: 0, x: -30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Tier 1</div>
-            <div className="mt-1 text-xl font-semibold">Fingerprinting + Embedded AI Tags</div>
-            <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-              <li>· Document fingerprint &amp; signed manifest</li>
-              <li>· Embedded AI usage tags inside PDFs</li>
-              <li>· Tamper verification &amp; layered signing history</li>
-            </ul>
-          </motion.div>
-          <motion.div
-            className="rounded-lg border border-primary/40 p-8 bg-primary/5"
-            initial={{ opacity: 0, x: 30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="text-xs uppercase tracking-wider text-primary">Tier 2</div>
-            <div className="mt-1 text-xl font-semibold">Dashboard + Anomaly Detection</div>
-            <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-              <li>· Secure-link distribution &amp; access telemetry</li>
-              <li>· Rules-based exposure scoring &amp; anomalies</li>
-              <li>· Geography summaries &amp; audit views</li>
-            </ul>
-          </motion.div>
-        </div>
-      </section>
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={motions}
+              custom={2}
+              className="relative"
+            >
+              <Card className="border-white/10 bg-white/[0.06] text-white shadow-2xl shadow-black/30 backdrop-blur-2xl">
+                <CardHeader>
+                  <CardTitle className="text-lg text-white">MVP control plane</CardTitle>
+                <CardDescription className="text-white/[0.65]">
+                    Signed payloads, clean API calls, and a working dev loop.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    { label: "Organization setup", value: "POST /setup", tone: "bg-emerald-500/15 text-emerald-200" },
+                    { label: "Document register", value: "POST /documents", tone: "bg-sky-500/15 text-sky-200" },
+                    { label: "Verify", value: "POST /verify", tone: "bg-violet-500/15 text-violet-200" },
+                    { label: "Telemetry", value: "POST /access-events", tone: "bg-amber-500/15 text-amber-100" },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                    >
+                      <div>
+                        <div className="text-sm font-medium text-white">{item.label}</div>
+                        <div className="text-xs text-white/[0.55]">Ready for local FastAPI</div>
+                      </div>
+                      <Badge className={`border-0 ${item.tone}`}>{item.value}</Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </section>
 
-      <footer className="border-t border-border">
-        <motion.div
-          className="max-w-6xl mx-auto px-6 py-10 flex items-center justify-between text-sm text-muted-foreground"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <div>DocShield · zero-content document passport</div>
-          <Link to="/app" className="hover:text-foreground transition-colors">Get started →</Link>
-        </motion.div>
+        <section id="features" className="border-t border-border/70 bg-background">
+          <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+            <div className="max-w-2xl">
+              <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">Features</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+                Built for a small team shipping a real backend, not a fake demo shell.
+              </h2>
+            </div>
+
+            <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {features.map((feature, index) => (
+                <motion.div
+                  key={feature.title}
+                  custom={index}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, amount: 0.3 }}
+                  variants={motions}
+                >
+                  <Card className="h-full border-border/70 bg-card/70">
+                    <CardHeader>
+                      <feature.icon className="h-5 w-5 text-primary" />
+                      <CardTitle className="text-base">{feature.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm leading-6 text-muted-foreground">{feature.body}</p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="workflow" className="border-t border-border/70 bg-secondary/20">
+          <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="max-w-xl">
+                <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">Workflow</p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+                  The path from setup to audit export is now a straight line.
+                </h2>
+                <p className="mt-4 text-base leading-7 text-muted-foreground">
+                  Setup creates the tenant and dev signing key, registration stores the signed manifest, verify reuses
+                  the latest active document, and export opens the full audit package with query-safe tenant context.
+                </p>
+              </div>
+
+              <div className="grid gap-4">
+                {[
+                  {
+                    step: "01",
+                    title: "Create the tenant",
+                    body: "Use the setup page to register org details, policies, and public keys, then persist them locally.",
+                  },
+                  {
+                    step: "02",
+                    title: "Register a signed document",
+                    body: "Build a manifest, issue an initial history event, and save the returned manifest hash and history tip.",
+                  },
+                  {
+                    step: "03",
+                    title: "Verify and monitor",
+                    body: "Submit the stored manifest and history to the backend, log telemetry, and open the export when needed.",
+                  },
+                ].map((item) => (
+                  <Card key={item.step} className="border-border/70 bg-card/80">
+                    <CardHeader className="flex flex-row items-start gap-4 space-y-0">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-background text-sm font-semibold">
+                        {item.step}
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">{item.title}</CardTitle>
+                        <CardDescription className="mt-1 text-sm leading-6 text-muted-foreground">
+                          {item.body}
+                        </CardDescription>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="reference" className="border-t border-border/70 bg-background">
+          <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+            <div className="flex flex-col gap-6 rounded-3xl border border-border bg-card px-6 py-8 md:flex-row md:items-center md:justify-between md:px-8">
+              <div className="max-w-2xl">
+                <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">API</p>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+                  The frontend now matches the FastAPI DTOs and dev proxy.
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  Query params, request bodies, and signed payloads line up with the backend, so local development
+                  behaves like the real app instead of silently falling back to mocks.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild variant="outline">
+                  <Link to="/app/reference">Open reference</Link>
+                </Button>
+                <Button asChild>
+                  <Link to="/auth">Get started</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-border/70 bg-background">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CircleCheckBig className="h-4 w-4 text-primary" />
+            DocShield, ready for local dev and the MVP backend.
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Built with shadcn/ui and a Grainient-style hero background.
+          </div>
+        </div>
       </footer>
     </div>
   );

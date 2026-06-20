@@ -1,208 +1,144 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Code2, Database, Fingerprint, ShieldCheck, Upload, Activity, Download, Settings2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Code2 } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { buildUrl } from "@/lib/docshield-api";
 
-const sections = [
+const endpoints = [
   {
-    title: "Base URL",
-    description: "The frontend talks to the backend at a configurable base path.",
-    snippet: `const BASE = (import.meta.env.VITE_DOCSHIELD_API_BASE) ?? "/api";`,
-  },
-  {
-    title: "Tenant setup",
+    icon: Settings2,
     method: "POST",
-    path: "/api/setup",
-    description: "Create a tenant, register its domains, policy templates, and public signing keys.",
-    body: `{
-  "tenant_id": "tenant_acme",
-  "tenant_name": "Acme Corp",
-  "domains": ["acme.example"],
-  "policy_templates": [
-    {
-      "name": "strict",
-      "policy": {
-        "external_ai_upload": "blocked",
-        "secure_link_required": true,
-        "forwarding": "blocked",
-        "public_sharing": "blocked"
-      }
-    }
-  ],
-  "public_keys": [
-    { "key_id": "key_1", "algorithm": "ed25519", "public_key": "..." }
-  ]
-}`,
-    response: `{ "ok": true, "tenant_id": "tenant_acme" }`,
+    path: "/setup",
+    title: "Organization setup",
+    summary: "Registers the organization, employee emails, policy templates, and public keys.",
+    details: ["tenant.org_name", "tenant.admin_emails", "public_keys[].public_key_b64"],
   },
   {
+    icon: Database,
+    method: "POST",
+    path: "/documents",
     title: "Register document",
-    method: "POST",
-    path: "/api/documents",
-    description: "Publish a document manifest with its policy and AI-sharing tags.",
-    body: `{
-  "document_id": "doc_7f92ab31",
-  "tenant_id": "tenant_acme",
-  "content_fingerprint": "sha256:4b9a…e21f",
-  "policy": { ... },
-  "embedded_ai_tags": ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
-  "signer_refs": ["key_1"]
-}`,
-    response: `{ "document_id": "doc_7f92ab31", "status": "active", ... }`,
+    summary: "Sends a signed manifest plus the initial signed history event.",
+    details: ["signed_manifest.manifest", "signed_manifest.manifest_signature", "initial_history[]"],
   },
   {
-    title: "Append history event",
+    icon: Fingerprint,
     method: "POST",
-    path: "/api/documents/:id/events",
-    description: "Add a signed event to a document's immutable chain.",
-    body: `{
-  "action": "sent",
-  "actor_org": "SupplierCo",
-  "actor_key_id": "key_1",
-  "timestamp": "2026-06-18T14:35:00Z",
-  "previous_event_hash": "sha256:aa11…",
-  "signature": "ed25519:1c2d…"
-}`,
-    response: `{ "event_id": "evt_002", ... }`,
-  },
-  {
+    path: "/verify",
     title: "Verify document",
+    summary: "Checks fingerprint integrity, manifest signatures, and policy decisions.",
+    details: ["history[]", "computed_content_fingerprint", "usage_context.operation"],
+  },
+  {
+    icon: Activity,
     method: "POST",
-    path: "/api/verify",
-    description: "Check whether a document is authentic, tampered, or revoked.",
-    body: `{
-  "document_id": "doc_7f92ab31",
-  "content_fingerprint": "sha256:4b9a…e21f"
-}`,
-    response: `{
-  "document_id": "doc_7f92ab31",
-  "authentic": true,
-  "tampered": false,
-  "revoked": false,
-  "policy": { ... },
-  "embedded_ai_tags": ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
-  "reason_codes": ["signature_valid", "manifest_intact"]
-}`,
+    path: "/access-events",
+    title: "Log telemetry",
+    summary: "Stores access events and triggers a risk recompute.",
+    details: ["tenant_id", "document_id", "action", "result"],
   },
   {
-    title: "Log access event",
-    method: "POST",
-    path: "/api/access-events",
-    description: "Record a secure-link access event for analytics and risk signals.",
-    body: `{
-  "document_id": "doc_7f92ab31",
-  "link_id": "lnk_alpha",
-  "timestamp": "2026-06-19T11:02:00Z",
-  "ip_hash": "h:8a3…",
-  "user_agent_hash": "h:e22…",
-  "country": "US",
-  "action": "opened"
-}`,
-    response: `{ "event_id": "ae_01", ... }`,
-  },
-  {
-    title: "Dashboard",
+    icon: Download,
     method: "GET",
-    path: "/api/dashboard",
-    description: "Aggregated stats, recent events, risk signals, and geography.",
-    body: null,
-    response: `{
-  "totals": { "documents": 2, "access_events": 4, "risk_signals": 2 },
-  "anomaly_score": 37,
-  "recent_events": [...],
-  "risk_signals": [...],
-  "geography": [{ "country": "US", "count": 2 }, ...]
-}`,
-  },
-  {
-    title: "Export audit log",
-    method: "GET",
-    path: "/api/audit-export",
-    description: "Request a signed export of the tenant's audit trail.",
-    body: null,
-    response: `{ "url": "https://storage.../audit-export.zip?token=..." }`,
+    path: "/audit-export",
+    title: "Export audit trail",
+    summary: "Returns manifest, history, telemetry, revocation, and verification summary.",
+    details: ["tenant_id", "document_id"],
   },
 ];
 
-const methodColor: Record<string, string> = {
-  GET: "bg-green-500/10 text-green-500 border-green-500/20",
-  POST: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+const methodTone: Record<string, string> = {
+  POST: "bg-sky-500/10 text-sky-700 border-sky-500/20 dark:text-sky-200",
+  GET: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-200",
 };
 
 export default function ReferencePage() {
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10">
-          <Code2 className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">API reference</h1>
-          <p className="text-sm text-muted-foreground">
-            How the DocShield frontend integrates with the backend endpoints.
-          </p>
-        </div>
-      </div>
+      <header className="space-y-2">
+        <Badge variant="secondary" className="gap-1">
+          <Code2 className="h-3.5 w-3.5" />
+          API reference
+        </Badge>
+        <h1 className="text-2xl font-semibold tracking-tight">Backend contract</h1>
+        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+          The frontend calls the FastAPI backend through a proxy-aware client. Set the base URL with{" "}
+          <Badge variant="outline" className="mx-1 font-mono text-[10px]">
+            VITE_DOCSHIELD_API_BASE
+          </Badge>
+          or rely on the default Vite proxy to `127.0.0.1:8000`.
+        </p>
+      </header>
 
-      <Card className="border-border/60">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-base">Quick integration guide</CardTitle>
-          <CardDescription>
-            The frontend calls these endpoints through the client in{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">src/lib/docshield-api.ts</code>.
-            Set{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">VITE_DOCSHIELD_API_BASE</code>{" "}
-            to point at your deployed backend.
-          </CardDescription>
+          <CardTitle className="text-base">Base URL</CardTitle>
+          <CardDescription>Current request builder and proxy target.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-1 text-sm">
-          <div className="rounded-md bg-muted p-3 font-mono text-xs overflow-x-auto">
-            {sections[0].snippet}
-          </div>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="font-mono text-[10px]">
+            {buildUrl("/setup")}
+          </Badge>
+          <Button asChild variant="outline" size="sm">
+            <a href="/api/docs" target="_blank" rel="noreferrer">
+              Open backend docs
+            </a>
+          </Button>
         </CardContent>
       </Card>
 
       <Separator />
 
-      <div className="grid gap-6">
-        {sections.slice(1).map((s) => (
-          <Card key={s.path} className="border-border/60">
+      <div className="grid gap-4">
+        {endpoints.map((endpoint) => (
+          <Card key={endpoint.path}>
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <Badge
-                  variant="outline"
-                  className={`font-mono text-xs ${methodColor[s.method]}`}
-                >
-                  {s.method}
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge variant="outline" className={`gap-1 font-mono text-[10px] ${methodTone[endpoint.method]}`}>
+                  <endpoint.icon className="h-3.5 w-3.5" />
+                  {endpoint.method}
                 </Badge>
-                <code className="font-mono text-sm text-foreground">{s.path}</code>
+                <Badge variant="secondary" className="font-mono text-[10px]">
+                  {endpoint.path}
+                </Badge>
               </div>
-              <CardTitle className="text-base pt-1">{s.title}</CardTitle>
-              <CardDescription>{s.description}</CardDescription>
+              <CardTitle className="text-base">{endpoint.title}</CardTitle>
+              <CardDescription>{endpoint.summary}</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              {s.body && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Request body
-                  </p>
-                  <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto whitespace-pre">
-                    {s.body}
-                  </pre>
+            <CardContent className="space-y-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Key fields</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {endpoint.details.map((detail) => (
+                    <Badge key={detail} variant="outline" className="font-mono text-[10px]">
+                      {detail}
+                    </Badge>
+                  ))}
                 </div>
-              )}
-              <div className={`space-y-2 ${!s.body ? "md:col-span-2" : ""}`}>
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Response
-                </p>
-                <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto whitespace-pre">
-                  {s.response}
-                </pre>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="routing">
+          <AccordionTrigger>Routing notes</AccordionTrigger>
+          <AccordionContent className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              The Vite dev server proxies <Badge variant="outline" className="mx-1 font-mono text-[10px]">/api</Badge>{" "}
+              to the local FastAPI server and strips the prefix, so calls like <span className="font-mono">/api/setup</span>{" "}
+              arrive at <span className="font-mono">/setup</span>.
+            </p>
+            <p>
+              Dashboard and audit export require an organization ID, and audit export also needs a document ID. The UI
+              persists those values after setup and document registration.
+            </p>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }
