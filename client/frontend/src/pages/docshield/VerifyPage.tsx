@@ -68,6 +68,32 @@ export default function VerifyPage() {
     }
   }
 
+  async function verifyUploadedFile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedFile) {
+      toast.error("Choose a document to verify");
+      return;
+    }
+    if (selectedFile.size > 25 * 1024 * 1024) {
+      toast.error("File is too large", { description: "The verification limit is 25 MB." });
+      return;
+    }
+
+    setLoading(true);
+    setResult(null);
+    try {
+      const bytes = await selectedFile.arrayBuffer();
+      setUploadedFingerprint(await sha256Hex(bytes));
+      setResult(await api.verifyFile(selectedFile, operation));
+    } catch (err) {
+      toast.error("Verification failed", {
+        description: err instanceof Error ? err.message : "The uploaded document could not be verified.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-5xl">
       <header className="space-y-2">
