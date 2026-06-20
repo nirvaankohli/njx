@@ -1,72 +1,20 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FileCheck2, Loader2, ShieldAlert, ShieldCheck, ShieldX, UploadCloud } from "lucide-react";
 import { api, type VerifyResult } from "@/lib/docshield-api";
 import { sha256Hex } from "@/lib/docshield-signing";
-import { getDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const OPERATIONS = [
-  { value: "external_ai_upload", label: "external_ai_upload" },
-  { value: "direct_share", label: "direct_share" },
-  { value: "download", label: "download" },
-];
-
 export default function VerifyPage() {
-  const session = getDocShieldSession();
-  const activeDocumentId = session.activeDocument?.documentId ?? null;
-  const activeDocumentFingerprint = session.activeDocument?.contentFingerprint ?? null;
-  const [docId, setDocId] = useState(session.activeDocument?.documentId ?? "doc_7f92ab31");
-  const [fp, setFp] = useState(session.activeDocument?.contentFingerprint ?? "sha256:4b9a…e21f");
-  const [operation, setOperation] = useState("external_ai_upload");
-  const [appName, setAppName] = useState("reference_ai_gateway");
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedFingerprint, setUploadedFingerprint] = useState<string | null>(null);
-
-  // The persisted session is rebuilt on every render, so we track the active
-  // document through stable scalar fields instead of the object reference.
-  useEffect(() => {
-    if (session.activeDocument) {
-      setDocId(session.activeDocument.documentId);
-      setFp(session.activeDocument.contentFingerprint);
-    }
-  }, [activeDocumentId, activeDocumentFingerprint]);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!session.activeDocument) {
-      toast.error("Upload a document first", { description: "The verify page reuses the latest signed manifest and history." });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await api.verify({
-        document_id: docId,
-        signed_manifest: session.activeDocument.signedManifest,
-        history: session.activeDocument.history,
-        computed_content_fingerprint: fp,
-        usage_context: {
-          operation,
-          app: appName,
-        },
-      });
-      setResult(response);
-    } catch (err) {
-      setResult(null);
-      toast.error("Verification failed", { description: err instanceof Error ? err.message : "POST /verify not reachable" });
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function verifyUploadedFile(e: React.FormEvent) {
     e.preventDefault();
@@ -84,7 +32,7 @@ export default function VerifyPage() {
     try {
       const bytes = await selectedFile.arrayBuffer();
       setUploadedFingerprint(await sha256Hex(bytes));
-      setResult(await api.verifyFile(selectedFile, operation));
+      setResult(await api.verifyFile(selectedFile));
     } catch (err) {
       toast.error("Verification failed", {
         description: err instanceof Error ? err.message : "The uploaded document could not be verified.",
