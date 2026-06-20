@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, Download, FileText, Loader2, ShieldCheck, Upload } from "lucide-react";
+import { BadgeCheck, Download, FileText, Loader2, ShieldCheck, Upload, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   api,
@@ -245,6 +245,13 @@ export default function DocumentsPage() {
     e.target.value = "";
   }
 
+  function clearSelectedFile() {
+    setSelectedFile(null);
+    setSignedDocument(null);
+    setAccessPassword("");
+    setAccessPasswordConfirm("");
+  }
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
@@ -271,7 +278,7 @@ export default function DocumentsPage() {
             <CardDescription>Drop a file or choose one from your device.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-0">
-            <div className="space-y-5">
+            <div className="space-y-6">
               <label
                 htmlFor="doc-upload"
                 className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
@@ -292,7 +299,7 @@ export default function DocumentsPage() {
               />
 
               {selectedFile && (
-                <div className="rounded-2xl border border-border bg-background/70 p-4">
+                <div className="group rounded-xl border border-border bg-background/70 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
@@ -301,10 +308,14 @@ export default function DocumentsPage() {
                         {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
                       </div>
                     </div>
-                    <Badge variant="outline" className="gap-1">
-                      <FileText className="h-3.5 w-3.5" />
-                      Ready
-                    </Badge>
+                    <button
+                      type="button"
+                      onClick={clearSelectedFile}
+                      aria-label="Remove selected file"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground opacity-0 transition-all duration-200 ease-out hover:border-red-400 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               )}
@@ -318,7 +329,7 @@ export default function DocumentsPage() {
                   animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, height: "auto" }}
                   exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10, height: 0 }}
                   transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
-                  className="mt-6 overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
+                  className="mt-8 overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
                 >
                   <div className="border-b border-border/60 bg-background/60 px-5 py-4">
                     <div className="flex items-center justify-between gap-3">
@@ -401,7 +412,7 @@ export default function DocumentsPage() {
                               </div>
                             </div>
                           ) : (
-                            <div className="rounded-2xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+                            <div className="rounded-xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
                               Organization access uses the signed-in company account. Private link settings stay off.
                             </div>
                           )}
@@ -413,7 +424,7 @@ export default function DocumentsPage() {
                           animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
-                          className="rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground"
+                          className="rounded-xl border border-border bg-background/70 p-4 text-sm text-muted-foreground"
                         >
                           Anyone with the link can open it, and private access settings stay off.
                         </motion.div>
