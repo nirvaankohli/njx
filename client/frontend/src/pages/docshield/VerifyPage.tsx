@@ -157,16 +157,16 @@ export default function VerifyPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Latest signed document</CardTitle>
-            <CardDescription>This is what gets sent as the nested manifest and history chain.</CardDescription>
+            <CardTitle>What DocShield checks</CardTitle>
+            <CardDescription>The uploaded file is compared with the trusted registry.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <Row label="Tenant" value={session.tenantName} />
-            <Row label="Document ID" value={session.activeDocument?.documentId ?? "None"} mono />
-            <Row label="Manifest hash" value={session.activeDocument?.manifestHash ?? "None"} mono />
-            <Row label="History tip" value={session.activeDocument?.historyTip ?? "None"} mono />
+            <Row label="File fingerprint" value={uploadedFingerprint ?? "Calculated after upload"} mono />
+            <Row label="Registered document" value={result?.document_id ?? "Pending verification"} mono />
+            <Row label="Issuer key" value={result?.issuer_key_id ?? "Pending verification"} mono />
             <div className="rounded-xl border border-border bg-muted/20 p-4 text-xs text-muted-foreground">
-              The backend uses the stored signed manifest and history to validate the fingerprint and policy decision.
+              The backend validates the exact SHA-256 fingerprint, Ed25519 manifest signature, issuer key status, and every
+              signature in the document history chain.
             </div>
           </CardContent>
         </Card>
