@@ -123,12 +123,12 @@ export default function LandingPage() {
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-background/50 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex items-start">
             <DocShieldBrand
               showTagline
               className="text-white"
-              iconClassName="h-8 w-8 rounded-lg bg-white/5 p-1.5"
-              titleClassName="text-sm font-semibold tracking-[0.14em] uppercase text-white"
+              variant="wordmark"
+              logoClassName="h-10 w-[196px]"
               taglineClassName="text-[11px] text-white/[0.55]"
             />
           </Link>

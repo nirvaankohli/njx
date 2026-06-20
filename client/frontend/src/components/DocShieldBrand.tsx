@@ -2,35 +2,30 @@ import { cn } from "@/lib/utils";
 
 type DocShieldBrandProps = {
   showTagline?: boolean;
+  variant?: "wordmark" | "icon";
   className?: string;
-  iconClassName?: string;
-  titleClassName?: string;
+  logoClassName?: string;
   taglineClassName?: string;
 };
 
 export function DocShieldBrand({
   showTagline = false,
+  variant = "wordmark",
   className,
-  iconClassName,
-  titleClassName,
+  logoClassName,
   taglineClassName,
 }: DocShieldBrandProps) {
   const resolvedTaglineClassName = taglineClassName ?? "opacity-70";
+  const logoSrc = variant === "icon" ? "/docshield-mark.png" : "/docshield-wordmark.png";
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex flex-col items-start gap-1.5", className)}>
       <img
-        src="/docshield-mark.png"
-        alt=""
-        aria-hidden="true"
-        className={cn("block shrink-0", iconClassName)}
+        src={logoSrc}
+        alt="DocShield"
+        className={cn("block shrink-0 object-contain", logoClassName)}
       />
-      <div className="leading-tight">
-        <div className={cn("text-[14px] font-semibold tracking-tight text-inherit", titleClassName)}>DocShield</div>
-        {showTagline && (
-          <div className={cn("text-[11px]", resolvedTaglineClassName)}>Signed documents, live in dev</div>
-        )}
-      </div>
+      {showTagline && <div className={cn("text-[11px] leading-tight", resolvedTaglineClassName)}>Signed documents, live in dev</div>}
     </div>
   );
 }

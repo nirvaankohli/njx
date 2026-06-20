@@ -66,10 +66,10 @@ export default function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-[420px] border border-border rounded-md p-8 space-y-6">
         <div className="flex flex-col items-start gap-3">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <Link to="/" className="flex items-start hover:opacity-80 transition-opacity">
             <DocShieldBrand
-              iconClassName="h-7 w-7 rounded-md bg-background object-contain p-1"
-              titleClassName="text-[14px] font-semibold tracking-tight"
+              variant="wordmark"
+              logoClassName="h-9 w-[170px]"
             />
           </Link>
           <p className="text-[13px] text-muted-foreground">

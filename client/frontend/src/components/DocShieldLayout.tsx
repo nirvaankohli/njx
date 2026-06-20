@@ -40,10 +40,10 @@ export default function DocShieldLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       <aside className="w-60 border-r border-border bg-sidebar shrink-0 hidden md:flex flex-col h-screen sticky top-0 self-start">
-        <Link to="/" className="flex items-center gap-2 px-5 py-5 border-b border-border">
+        <Link to="/" className="flex items-start px-5 py-5 border-b border-border">
           <DocShieldBrand
-            iconClassName="h-5 w-5 rounded-sm bg-background p-0.5"
-            titleClassName="font-semibold tracking-tight text-foreground"
+            variant="wordmark"
+            logoClassName="h-8 w-[132px]"
           />
         </Link>
 
