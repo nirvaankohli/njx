@@ -4,10 +4,19 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.db import DocumentORM, VerificationLogORM
-from app.models.dto import PolicyDecision, VerifyRequest, VerifyResult
+from app.models.db import DocumentORM, SignatureHistoryEventORM, VerificationLogORM
+from app.models.dto import (
+    ManifestClaims,
+    PolicyDecision,
+    SignatureHistoryEvent,
+    SignedManifest,
+    UsageContext,
+    VerifyRequest,
+    VerifyResult,
+)
 from app.security.canonical_json import canonical_json_bytes
 from app.security.hashes import canonical_hash
 from app.services.audit_service import log_action
@@ -27,6 +36,12 @@ def _event_body(event: Any) -> dict[str, Any]:
     body = event.model_dump(mode="json")
     body.pop("signature", None)
     return body
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def evaluate_policy(*, policy: dict, tags: list[str], usage_context: dict) -> PolicyDecision:
@@ -226,6 +241,71 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
         reasons=reasons,
     )
     return _persist_verification(session, stored_doc, result, request.usage_context.model_dump(mode="json"))
+
+
+def verify_registered_fingerprint(
+    session: Session,
+    *,
+    fingerprint: str,
+    usage_context: UsageContext,
+) -> VerifyResult:
+    """Verify uploaded bytes against the signed record stored in the registry."""
+    stored_doc = session.scalar(
+        select(DocumentORM)
+        .where(DocumentORM.content_fingerprint == fingerprint)
+        .order_by(DocumentORM.created_at.desc())
+    )
+    if stored_doc is None:
+        return VerifyResult(
+            status="unknown_document",
+            document_id="unknown",
+            fingerprint_match=False,
+            manifest_signature_valid=False,
+            signature_chain_valid=False,
+            revoked=False,
+            policy_decision=PolicyDecision(
+                operation=usage_context.operation,
+                allowed=False,
+                reason="FINGERPRINT_NOT_REGISTERED",
+            ),
+            reasons=["Uploaded file fingerprint is not registered"],
+        )
+
+    history_rows = session.scalars(
+        select(SignatureHistoryEventORM)
+        .where(SignatureHistoryEventORM.document_id == stored_doc.document_id)
+        .order_by(SignatureHistoryEventORM.timestamp, SignatureHistoryEventORM.created_at)
+    ).all()
+    history = [
+        SignatureHistoryEvent(
+            event_id=row.event_id,
+            document_id=row.document_id,
+            event=row.event,
+            actor_org=row.actor_org,
+            actor_key_id=row.actor_key_id,
+            timestamp=_as_utc(row.timestamp),
+            previous_event_hash=row.previous_event_hash,
+            manifest_hash=row.manifest_hash,
+            payload=row.payload,
+            signature=row.signature,
+        )
+        for row in history_rows
+    ]
+    signed_manifest = SignedManifest(
+        manifest=ManifestClaims.model_validate(stored_doc.manifest),
+        manifest_signature=stored_doc.manifest_signature,
+        signature_algorithm=stored_doc.signature_algorithm,
+    )
+    return verify_passport(
+        session,
+        VerifyRequest(
+            document_id=stored_doc.document_id,
+            signed_manifest=signed_manifest,
+            history=history,
+            computed_content_fingerprint=fingerprint,
+            usage_context=usage_context,
+        ),
+    )
 
 
 def _persist_verification(session: Session, document: DocumentORM, result: VerifyResult, usage_context: dict) -> VerifyResult:

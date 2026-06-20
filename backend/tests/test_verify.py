@@ -215,3 +215,41 @@ def test_verify_signed_manifest_for_pdf_fixture(client):
     assert body["fingerprint_match"] is True
     assert body["manifest_signature_valid"] is True
     assert body["signature_chain_valid"] is True
+
+    upload_response = client.post(
+        "/verify/file?operation=authenticity_check&app=upload_test",
+        content=pdf_path.read_bytes(),
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert upload_response.status_code == 200
+    upload_body = upload_response.json()
+    assert upload_body["status"] == "valid"
+    assert upload_body["document_id"] == "doc_invoice_pdf"
+    assert upload_body["fingerprint_match"] is True
+    assert upload_body["manifest_signature_valid"] is True
+    assert upload_body["signature_chain_valid"] is True
+
+
+def test_verify_uploaded_file_rejects_unregistered_bytes(client):
+    response = client.post(
+        "/verify/file",
+        content=b"this is not a registered document",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "unknown_document"
+    assert body["manifest_signature_valid"] is False
+    assert body["policy_decision"]["reason"] == "FINGERPRINT_NOT_REGISTERED"
+
+
+def test_verify_uploaded_file_rejects_empty_body(client):
+    response = client.post(
+        "/verify/file",
+        content=b"",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Uploaded file is empty"
