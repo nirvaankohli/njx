@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Loader2, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
+import { FileCheck2, Loader2, ShieldAlert, ShieldCheck, ShieldX, UploadCloud } from "lucide-react";
 import { api, type VerifyResult } from "@/lib/docshield-api";
+import { sha256Hex } from "@/lib/docshield-signing";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,8 @@ export default function VerifyPage() {
   const [appName, setAppName] = useState("reference_ai_gateway");
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedFingerprint, setUploadedFingerprint] = useState<string | null>(null);
 
   // The persisted session is rebuilt on every render, so we track the active
   // document through stable scalar fields instead of the object reference.
@@ -151,6 +154,12 @@ export default function VerifyPage() {
       {result && <VerifyResultCard result={result} />}
     </div>
   );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function VerifyResultCard({ result }: { result: VerifyResult }) {
