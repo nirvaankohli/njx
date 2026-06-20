@@ -15,6 +15,12 @@ export type DocShieldSession = {
     historyTip: string;
     signedManifest: SignedManifestPayload;
     history: SignedHistoryEventPayload[];
+    sourceFileName?: string;
+    sourceFileType?: string;
+    sourceFileSize?: number;
+    accessAnyoneWithLink?: boolean;
+    accessMethod?: "password" | "organization" | null;
+    accessPasswordHash?: string | null;
   } | null;
 };
 

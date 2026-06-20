@@ -7,6 +7,7 @@ import {
   type SignedHistoryEventPayload,
 } from "@/lib/docshield-api";
 import { mockDocuments, mockHistory } from "@/lib/docshield-mock";
+import { formatFileSize } from "@/lib/docshield-file";
 import { ensureDevSigningIdentity, signCanonicalPayload, toBackendIsoString } from "@/lib/docshield-signing";
 import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,18 @@ export default function DocumentDetailPage() {
     const localDocument = mockDocuments.find((entry) => entry.document_id === documentId) ?? null;
     setDoc(localDocument);
     setHistory(mockHistory[documentId] ?? []);
-  }, [documentId, activeDocumentId, activeDocumentFingerprint, activeDocumentHistoryTip, activeDocumentManifestHash, session.issuerKeyId, session.tenantId]);
+  }, [
+    documentId,
+    activeDocumentId,
+    activeDocumentFingerprint,
+    activeDocumentHistoryTip,
+    activeDocumentManifestHash,
+    session.activeDocument?.sourceFileName,
+    session.activeDocument?.sourceFileType,
+    session.activeDocument?.sourceFileSize,
+    session.issuerKeyId,
+    session.tenantId,
+  ]);
 
   const manifestHash = useMemo(() => activeDocumentManifestHash ?? `sha256:${documentId}`, [documentId, activeDocumentManifestHash]);
   const previousEventHash = activeDocumentHistoryTip;
@@ -137,6 +149,15 @@ export default function DocumentDetailPage() {
               <Field label="Status" value={doc.status ?? "active"} />
               <Field label="Fingerprint" value={doc.content_fingerprint} mono />
               <Field label="Signers" value={doc.signer_refs.join(", ") || "—"} mono />
+              <Field label="Source file" value={session.activeDocument?.sourceFileName ?? "—"} />
+              <Field
+                label="Source type"
+                value={
+                  session.activeDocument?.sourceFileType
+                    ? `${session.activeDocument.sourceFileType}${session.activeDocument.sourceFileSize ? ` · ${formatFileSize(session.activeDocument.sourceFileSize)}` : ""}`
+                    : "—"
+                }
+              />
             </div>
             <div>
               <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Policy</div>

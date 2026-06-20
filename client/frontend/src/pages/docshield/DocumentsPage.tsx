@@ -1,11 +1,25 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, CircleAlert, FileText, Loader2, ShieldCheck } from "lucide-react";
-import { api, type AiTag, type DocumentManifest, type SignedHistoryEventPayload, type SignedManifestPayload } from "@/lib/docshield-api";
+import { BadgeCheck, Download, FileText, Loader2, ShieldCheck, Upload, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  api,
+  type AiTag,
+  type DocumentManifest,
+  type SignedHistoryEventPayload,
+  type SignedManifestPayload,
+} from "@/lib/docshield-api";
 import { mockDocuments } from "@/lib/docshield-mock";
 import {
-  ensureDevSigningIdentity,
+  buildDocumentId,
+  fingerprintDocumentFile,
+  formatFileSize,
+  inferDocumentMimeType,
+  isSupportedDocumentFile,
+} from "@/lib/docshield-file";
+import {
   canonicalJsonString,
+  ensureDevSigningIdentity,
   sha256Hex,
   signCanonicalPayload,
   toBackendIsoString,
@@ -18,8 +32,6 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
 const ALL_TAGS: AiTag[] = ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY", "NO_FORWARDING", "PUBLIC_SHARING_BLOCKED"];
@@ -29,9 +41,22 @@ type LocalDocument = DocumentManifest & {
   historyTip: string;
   signedManifest: SignedManifestPayload;
   initialHistory: SignedHistoryEventPayload[];
+  sourceFileName?: string;
+  sourceFileType?: string;
+  sourceFileSize?: number;
+  accessAnyoneWithLink?: boolean;
+  accessMethod?: "password" | "organization" | null;
+};
+
+type SignedDocumentSummary = {
+  documentId: string;
+  fileName: string;
+  fingerprint: string;
+  createdAt: string;
 };
 
 export default function DocumentsPage() {
+  const reducedMotion = useReducedMotion() ?? false;
   const session = getDocShieldSession();
   const [docs, setDocs] = useState<LocalDocument[]>(
     mockDocuments.map((doc) => ({
@@ -65,9 +90,10 @@ export default function DocumentsPage() {
   const [actorOrg, setActorOrg] = useState(session.tenantName || "SupplierCo");
   const [signerRefs, setSignerRefs] = useState(issuerKeyId);
   const [blockAi, setBlockAi] = useState(true);
-  const [secureLink, setSecureLink] = useState(true);
-  const [blockForward, setBlockForward] = useState(true);
-  const [blockPublic, setBlockPublic] = useState(true);
+  const [anyoneWithLink, setAnyoneWithLink] = useState(true);
+  const [accessMethod, setAccessMethod] = useState<"password" | "organization">("password");
+  const [accessPassword, setAccessPassword] = useState("");
+  const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
   const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"]);
 
   function toggleTag(tag: AiTag) {
@@ -92,18 +118,26 @@ export default function DocumentsPage() {
 
     try {
       await ensureDevSigningIdentity();
+      const tenantId = session.tenantId;
+      const issuerKeyId = session.issuerKeyId;
+      const actorOrg = session.tenantName || "Employee";
+      const fileType = inferDocumentMimeType(selectedFile);
+      const fingerprint = await fingerprintDocumentFile(selectedFile);
       const createdAt = toBackendIsoString();
+      const documentId = buildDocumentId(selectedFile.name, fingerprint);
+      const accessPasswordHash =
+        privateAccessEnabled && accessMethod === "password" ? await sha256Hex(accessPassword.trim()) : null;
       const manifest = {
         schema_version: "1.0",
         tenant_id: tenantId,
-        document_id: docId || `doc_${Math.random().toString(16).slice(2, 10)}`,
+        document_id: documentId,
         issuer_key_id: issuerKeyId,
         content_fingerprint: fingerprint,
         policy: {
           external_ai_upload: blockAi ? "blocked" : "allowed",
-          secure_link_required: secureLink,
-          forwarding: blockForward ? "blocked" : "allowed",
-          public_sharing: blockPublic ? "blocked" : "allowed",
+          secure_link_required: privateAccessEnabled,
+          forwarding: privateAccessEnabled ? "blocked" : "allowed",
+          public_sharing: anyoneWithLink ? "allowed" : "blocked",
         } as const,
         embedded_ai_tags: tags,
         created_at: createdAt,
@@ -136,7 +170,6 @@ export default function DocumentsPage() {
         signed_manifest: signedManifest,
         initial_history: [initialEvent],
       });
-      const parsedSignerRefs = signerRefs.split(",").map((value) => value.trim()).filter(Boolean);
 
       const nextDocument: LocalDocument = {
         document_id: manifest.document_id,
@@ -144,18 +177,21 @@ export default function DocumentsPage() {
         content_fingerprint: fingerprint,
         policy: manifest.policy,
         embedded_ai_tags: tags,
-        signer_refs: parsedSignerRefs.length > 0 ? parsedSignerRefs : [issuerKeyId],
+        signer_refs: [issuerKeyId],
         created_at: createdAt,
         status: "active",
         manifestHash: response.manifest_hash,
         historyTip: response.history_tip,
         signedManifest,
         initialHistory: [initialEvent],
+        sourceFileName: selectedFile.name,
+        sourceFileType: fileType,
+        sourceFileSize: selectedFile.size,
+        accessAnyoneWithLink: anyoneWithLink,
+        accessMethod: privateAccessEnabled ? accessMethod : null,
       };
 
       setDocs((current) => [nextDocument, ...current.filter((doc) => doc.document_id !== nextDocument.document_id)]);
-      setDocId("");
-      setFingerprint("");
       updateDocShieldSession({
         tenantId,
         tenantName: session.tenantName,
@@ -167,13 +203,27 @@ export default function DocumentsPage() {
           historyTip: response.history_tip,
           signedManifest,
           history: [initialEvent],
+          sourceFileName: selectedFile.name,
+          sourceFileType: fileType,
+          sourceFileSize: selectedFile.size,
+          accessAnyoneWithLink: anyoneWithLink,
+          accessMethod: privateAccessEnabled ? accessMethod : null,
+          accessPasswordHash,
         },
       });
-      setDocId(nextDocument.document_id);
-      setSignerRefs(issuerKeyId);
-      toast.success("Document registered", { description: `${response.document_id} is ready for verify and telemetry.` });
+      setSignedDocument({
+        documentId: nextDocument.document_id,
+        fileName: selectedFile.name,
+        fingerprint,
+        createdAt,
+      });
+      setAccessPassword("");
+      setAccessPasswordConfirm("");
+      toast.success("Document signed", {
+        description: `${selectedFile.name} is now ready to download.`,
+      });
     } catch (err) {
-      toast.error("Document registration failed", {
+      toast.error("Document signing failed", {
         description: err instanceof Error ? err.message : "POST /documents not reachable",
       });
     } finally {
@@ -181,61 +231,55 @@ export default function DocumentsPage() {
     }
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    setSignedDocument(null);
+    e.target.value = "";
+  }
+
+  function clearSelectedFile() {
+    setSelectedFile(null);
+    setSignedDocument(null);
+    setAccessPassword("");
+    setAccessPasswordConfirm("");
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="gap-1">
             <BadgeCheck className="h-3.5 w-3.5" />
-            Signed flow
+            Employee upload
           </Badge>
           <Badge variant="outline" className="gap-1">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Backend aligned
+            Private access
           </Badge>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Upload a file to be encrypted or signed.</h1>
         <p className="text-sm text-muted-foreground">
-          Upload a document once, sign it locally, and keep the audit trail ready for verify and review.
+          Choose a PDF or DOCX, then set the access controls before signing.
         </p>
       </header>
 
-      <Alert>
-        <CircleAlert className="h-4 w-4" />
-        <AlertTitle>Signatures are created in your browser</AlertTitle>
-        <AlertDescription>
-          The browser stores a dev Ed25519 keypair, signs the manifest and first history event, and sends the exact
-          payloads the backend expects.
-        </AlertDescription>
-      </Alert>
-
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card>
+      <div className="space-y-6">
+        <Card className="overflow-hidden border-border/80 bg-gradient-to-b from-background to-muted/20 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.7)]">
           <CardHeader>
-            <CardTitle>Upload and register</CardTitle>
-            <CardDescription>
-              Fill in the upload details once, and we’ll handle the signing and audit trail for you.
-            </CardDescription>
+            <CardTitle className="text-base">Upload</CardTitle>
+            <CardDescription>Drop a file or choose one from your device.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={submit} className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Document ID</Label>
-                  <Input
-                    value={docId}
-                    onChange={(e) => setDocId(e.target.value)}
-                    placeholder="employee-handbook-v3"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tenant ID</Label>
-                  <Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Issuer key ID</Label>
-                  <Input value={issuerKeyId} onChange={(e) => setIssuerKeyId(e.target.value)} required />
+          <CardContent className="space-y-0">
+            <div className="space-y-8">
+              <label
+                htmlFor="doc-upload"
+                className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
+              >
+                <Upload className="h-10 w-10 text-primary" />
+                <div className="mt-4 max-w-md space-y-2">
+                  <div className="text-lg font-medium">Upload a file to be encrypted or signed</div>
+                  <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Signer refs</Label>
@@ -261,89 +305,219 @@ export default function DocumentsPage() {
                 </div>
               </div>
 
-              <div>
-                <div className="mb-3 text-sm font-medium">Access rules</div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
-                  <PolicyRow label="Require secure links" value={secureLink} onChange={setSecureLink} />
-                  <PolicyRow label="Block forwarding" value={blockForward} onChange={setBlockForward} />
-                  <PolicyRow label="Block public sharing" value={blockPublic} onChange={setBlockPublic} />
+              {selectedFile && (
+                <div className="group rounded-xl border border-border bg-background/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
+                      <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearSelectedFile}
+                      aria-label="Remove selected file"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground opacity-0 transition-all duration-200 ease-out hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-600 group-hover:opacity-100"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div>
-                <div className="text-sm font-medium mb-3">Embedded AI tags</div>
-                <div className="flex flex-wrap gap-3">
-                  {ALL_TAGS.map((tag) => (
-                    <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                      <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
-                      <span className="font-mono text-xs">{tag}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <AnimatePresence initial={false}>
+              {selectedFile ? (
+                <motion.div
+                  key="access-panel"
+                  initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -18, height: 0 }}
+                  animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, height: "auto" }}
+                  exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10, height: 0 }}
+                  transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+                  className="mt-10 overflow-hidden rounded-xl border border-border/80 bg-gradient-to-b from-muted/35 to-background/80 shadow-[0_-8px_32px_-24px_rgba(0,0,0,0.75)]"
+                >
+                  <div className="border-b border-border/60 bg-background/60 px-5 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Access roles</div>
+                        <div className="mt-1 text-base font-medium">Set who can open it</div>
+                      </div>
+                      <Badge variant="secondary" className="gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Open
+                      </Badge>
+                    </div>
+                  </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  The manifest signature, history event signature, and manifest hash are generated before submit.
-                </p>
-                <Button type="submit" disabled={busy || !fingerprint}>
-                  {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                  Register upload
-                </Button>
-              </div>
-            </form>
+                  <div className="grid gap-0 lg:grid-cols-[1fr_1px_0.92fr]">
+                    <div className="space-y-4 px-5 py-5">
+                      <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
+                      <PolicyRow label="Anyone with link" value={anyoneWithLink} onChange={handleAnyoneWithLinkChange} />
+
+                      <div>
+                        <div className="mb-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">Embedded AI tags</div>
+                        <div className="flex flex-wrap gap-3">
+                          {ALL_TAGS.map((tag) => (
+                            <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                              <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
+                              <span className="font-mono text-xs">{tag}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="hidden bg-border/70 lg:block" />
+
+                    <div className="space-y-4 px-5 py-5">
+                      {!anyoneWithLink ? (
+                        <motion.div
+                          key="private-access"
+                          initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                          animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-3"
+                        >
+                          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Private access</div>
+                          <div className="grid gap-2">
+                            <AccessChoice
+                              label="Password"
+                              description="People enter a password to open the file."
+                              active={accessMethod === "password"}
+                              onClick={() => setAccessMethod("password")}
+                            />
+                            <AccessChoice
+                              label="Organization sign-in"
+                              description="Only users signed into the organization can open it."
+                              active={accessMethod === "organization"}
+                              onClick={() => setAccessMethod("organization")}
+                            />
+                          </div>
+
+                          {accessMethod === "password" ? (
+                            <div className="space-y-3 pt-1">
+                              <div className="space-y-2">
+                                <Label>Access password</Label>
+                                <Input
+                                  type="password"
+                                  value={accessPassword}
+                                  onChange={(e) => setAccessPassword(e.target.value)}
+                                  placeholder="Create a password"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Confirm password</Label>
+                                <Input
+                                  type="password"
+                                  value={accessPasswordConfirm}
+                                  onChange={(e) => setAccessPasswordConfirm(e.target.value)}
+                                  placeholder="Repeat the password"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-border bg-background/70 p-3 text-sm text-muted-foreground">
+                              Organization access uses the signed-in company account. Private link settings stay off.
+                            </div>
+                          )}
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="public-access"
+                          initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                          animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                          className="rounded-xl border border-border bg-background/70 p-4 text-sm text-muted-foreground"
+                        >
+                          Anyone with the link can open it, and private access settings stay off.
+                        </motion.div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                        <p className="text-xs text-muted-foreground">Configure access, then sign the file.</p>
+                        <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
+                          {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                          Sign file
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
+        {signedDocument && (
           <Card>
             <CardHeader>
-              <CardTitle>Workspace context</CardTitle>
-              <CardDescription>The current organization and active document stay in your browser.</CardDescription>
+              <CardTitle className="text-base">Signed file ready</CardTitle>
+              <CardDescription>{signedDocument.fileName} is ready for the private download page.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <Row label="Organization" value={session.tenantName} />
-              <Row label="Signing key" value={session.issuerKeyId} mono />
-              <Row label="Current document" value={session.activeDocument?.documentId ?? "None"} mono />
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SignedField label="Document ID" value={signedDocument.documentId} mono />
+                <SignedField label="Fingerprint" value={signedDocument.fingerprint} mono />
+                <SignedField label="Signed at" value={signedDocument.createdAt} mono />
+                <SignedField label="File name" value={signedDocument.fileName} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to={`/app/documents/${encodeURIComponent(signedDocument.documentId)}/download`}>
+                    <Download className="mr-1.5 h-4 w-4" />
+                    Open download page
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
+        )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Uploaded documents</CardTitle>
-              <CardDescription>Locally remembered entries, since the backend does not expose a list endpoint.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {docs.map((doc) => (
-                <Link
-                  key={doc.document_id}
-                  to={`/app/documents/${encodeURIComponent(doc.document_id)}`}
-                  className="block rounded-xl border border-border bg-background/60 p-4 transition-colors hover:border-primary/40 hover:bg-secondary/30"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <div className="truncate font-medium">{doc.document_id}</div>
-                      </div>
-                      <div className="mt-1 truncate text-xs text-muted-foreground">{doc.content_fingerprint}</div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Upload history</CardTitle>
+            <CardDescription>Uploaded documents in this browser session.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {docs.map((doc) => (
+              <Link
+                key={doc.document_id}
+                to={`/app/documents/${encodeURIComponent(doc.document_id)}`}
+                className="block rounded-xl border border-border bg-background/60 p-4 transition-colors hover:border-primary/40 hover:bg-secondary/30"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <div className="truncate font-medium">{doc.document_id}</div>
                     </div>
-                    <Badge variant={doc.status === "revoked" ? "destructive" : "secondary"}>{doc.status ?? "active"}</Badge>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                      {doc.sourceFileName ? `${doc.sourceFileName} · ` : ""}
+                      {doc.content_fingerprint}
+                    </div>
                   </div>
-                  <Separator className="my-3" />
-                  <div className="flex flex-wrap gap-2">
-                    {doc.embedded_ai_tags.slice(0, 3).map((tag) => (
-                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                        {tag}
-                      </Badge>
-                    ))}
+                  <Badge variant={doc.status === "revoked" ? "destructive" : "secondary"}>{doc.status ?? "active"}</Badge>
+                </div>
+                {doc.sourceFileType && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    {doc.sourceFileType} {doc.sourceFileSize ? `· ${formatFileSize(doc.sourceFileSize)}` : ""}
                   </div>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {doc.embedded_ai_tags.slice(0, 3).map((tag) => (
+                    <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -358,11 +532,36 @@ function PolicyRow({ label, value, onChange }: { label: string; value: boolean; 
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function AccessChoice({
+  label,
+  description,
+  active,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div>
-      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border px-3 py-2 text-left transition-colors ${
+        active ? "border-primary bg-primary/10" : "border-border bg-background/60 hover:border-primary/40"
+      }`}
+    >
+      <div className="text-sm font-medium">{label}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+    </button>
+  );
+}
+
+function SignedField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-background/70 p-3">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-sm ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</div>
     </div>
   );
 }
