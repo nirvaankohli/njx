@@ -111,6 +111,7 @@ class VerifyResult(BaseModel):
         "invalid_signature",
     ]
     document_id: str
+    issuer_key_id: str | None = None
     fingerprint_match: bool
     manifest_signature_valid: bool
     signature_chain_valid: bool
@@ -203,4 +204,3 @@ class AuditExportResponse(BaseModel):
     access_events: list[dict] = Field(default_factory=list)
     risk_signals: list[dict] = Field(default_factory=list)
     verification_summary: VerificationSummary
-

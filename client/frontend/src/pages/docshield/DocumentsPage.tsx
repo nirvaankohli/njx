@@ -81,8 +81,14 @@ export default function DocumentsPage() {
     })),
   );
   const [busy, setBusy] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [signedDocument, setSignedDocument] = useState<SignedDocumentSummary | null>(null);
+
+  const [docId, setDocId] = useState(session.activeDocument?.documentId ?? "");
+  const [tenantId, setTenantId] = useState(session.tenantId);
+  const [issuerKeyId, setIssuerKeyId] = useState(session.issuerKeyId);
+  const [fingerprint, setFingerprint] = useState(session.activeDocument?.contentFingerprint ?? "");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [actorOrg, setActorOrg] = useState(session.tenantName || "SupplierCo");
+  const [signerRefs, setSignerRefs] = useState(issuerKeyId);
   const [blockAi, setBlockAi] = useState(true);
   const [anyoneWithLink, setAnyoneWithLink] = useState(true);
   const [accessMethod, setAccessMethod] = useState<"password" | "organization">("password");
@@ -94,33 +100,20 @@ export default function DocumentsPage() {
     setTags((prev) => (prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]));
   }
 
-  function handleAnyoneWithLinkChange(next: boolean) {
-    setAnyoneWithLink(next);
-    if (next) {
-      setAccessPassword("");
-      setAccessPasswordConfirm("");
-    } else {
-      setAccessMethod((current) => current ?? "password");
+  async function selectDocument(file: File | null) {
+    setDocumentFile(file);
+    if (!file) {
+      setFingerprint("");
+      return;
     }
+    if (!docId) {
+      setDocId(`doc_${file.name.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").toLowerCase()}`);
+    }
+    setFingerprint(await sha256Hex(await file.arrayBuffer()));
   }
 
-  async function signDocument() {
-    if (!selectedFile || busy) return;
-    if (!isSupportedDocumentFile(selectedFile)) {
-      toast.error("Unsupported file type", {
-        description: "Upload a PDF or DOCX file.",
-      });
-      return;
-    }
-
-    const privateAccessEnabled = !anyoneWithLink;
-    if (privateAccessEnabled && accessMethod === "password" && (!accessPassword.trim() || accessPassword !== accessPasswordConfirm)) {
-      toast.error("Password mismatch", {
-        description: "Enter the same password twice before signing.",
-      });
-      return;
-    }
-
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
     setBusy(true);
 
     try {
@@ -288,15 +281,29 @@ export default function DocumentsPage() {
                   <div className="text-lg font-medium">Upload a file to be encrypted or signed</div>
                   <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
                 </div>
-              </label>
-              <Input
-                id="doc-upload"
-                type="file"
-                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={busy}
-              />
+                <div className="space-y-2">
+                  <Label>Signer refs</Label>
+                  <Input value={signerRefs} onChange={(e) => setSignerRefs(e.target.value)} placeholder="key_acme_primary" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="document-file">Document file</Label>
+                  <Input
+                    id="document-file"
+                    type="file"
+                    onChange={(event) => void selectDocument(event.target.files?.[0] ?? null)}
+                    required
+                  />
+                  {documentFile && (
+                    <p className="break-all font-mono text-xs text-muted-foreground">
+                      {documentFile.name} · {fingerprint || "Calculating SHA-256…"}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Uploaded by</Label>
+                  <Input value={actorOrg} onChange={(e) => setActorOrg(e.target.value)} required />
+                </div>
+              </div>
 
               {selectedFile && (
                 <div className="group rounded-xl border border-border bg-background/70 p-4">

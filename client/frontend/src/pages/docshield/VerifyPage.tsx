@@ -1,65 +1,42 @@
-import { useEffect, useState } from "react";
-import { AlertCircle, Loader2, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
+import { useState } from "react";
+import { FileCheck2, Loader2, ShieldAlert, ShieldCheck, ShieldX, UploadCloud } from "lucide-react";
 import { api, type VerifyResult } from "@/lib/docshield-api";
-import { getDocShieldSession } from "@/lib/docshield-session";
+import { sha256Hex } from "@/lib/docshield-signing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const OPERATIONS = [
-  { value: "external_ai_upload", label: "external_ai_upload" },
-  { value: "direct_share", label: "direct_share" },
-  { value: "download", label: "download" },
-];
-
 export default function VerifyPage() {
-  const session = getDocShieldSession();
-  const activeDocumentId = session.activeDocument?.documentId ?? null;
-  const activeDocumentFingerprint = session.activeDocument?.contentFingerprint ?? null;
-  const [docId, setDocId] = useState(session.activeDocument?.documentId ?? "doc_7f92ab31");
-  const [fp, setFp] = useState(session.activeDocument?.contentFingerprint ?? "sha256:4b9a…e21f");
-  const [operation, setOperation] = useState("external_ai_upload");
-  const [appName, setAppName] = useState("reference_ai_gateway");
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedFingerprint, setUploadedFingerprint] = useState<string | null>(null);
 
-  // The persisted session is rebuilt on every render, so we track the active
-  // document through stable scalar fields instead of the object reference.
-  useEffect(() => {
-    if (session.activeDocument) {
-      setDocId(session.activeDocument.documentId);
-      setFp(session.activeDocument.contentFingerprint);
-    }
-  }, [activeDocumentId, activeDocumentFingerprint]);
-
-  async function submit(e: React.FormEvent) {
+  async function verifyUploadedFile(e: React.FormEvent) {
     e.preventDefault();
-    if (!session.activeDocument) {
-      toast.error("Upload a document first", { description: "The verify page reuses the latest signed manifest and history." });
+    if (!selectedFile) {
+      toast.error("Choose a document to verify");
+      return;
+    }
+    if (selectedFile.size > 25 * 1024 * 1024) {
+      toast.error("File is too large", { description: "The verification limit is 25 MB." });
       return;
     }
 
     setLoading(true);
+    setResult(null);
     try {
-      const response = await api.verify({
-        document_id: docId,
-        signed_manifest: session.activeDocument.signedManifest,
-        history: session.activeDocument.history,
-        computed_content_fingerprint: fp,
-        usage_context: {
-          operation,
-          app: appName,
-        },
-      });
-      setResult(response);
+      const bytes = await selectedFile.arrayBuffer();
+      setUploadedFingerprint(await sha256Hex(bytes));
+      setResult(await api.verifyFile(selectedFile));
     } catch (err) {
-      setResult(null);
-      toast.error("Verification failed", { description: err instanceof Error ? err.message : "POST /verify not reachable" });
+      toast.error("Verification failed", {
+        description: err instanceof Error ? err.message : "The uploaded document could not be verified.",
+      });
     } finally {
       setLoading(false);
     }
@@ -70,62 +47,57 @@ export default function VerifyPage() {
       <header className="space-y-2">
         <Badge variant="secondary" className="gap-1">
           <ShieldCheck className="h-3.5 w-3.5" />
-          Backend verify
+          Ed25519 authenticity check
         </Badge>
-        <h1 className="text-2xl font-semibold tracking-tight">Verify</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Verify a document</h1>
         <p className="text-sm text-muted-foreground">
-          Uses the last uploaded signed manifest and history chain, then posts the exact verification DTO the backend expects.
+          Select a file to confirm that its exact contents match a document signed by a trusted issuer key.
         </p>
       </header>
 
       <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Keep the active document in sync</AlertTitle>
+        <FileCheck2 className="h-4 w-4" />
+        <AlertTitle>Your file stays private</AlertTitle>
         <AlertDescription>
-          Upload a document first so this page can reuse its signed manifest, history, and manifest hash.
+          DocShield streams the file to calculate its SHA-256 fingerprint. It does not store the uploaded bytes.
         </AlertDescription>
       </Alert>
 
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Verification request</CardTitle>
-            <CardDescription>Minimal controls, but the payload still matches the backend contract.</CardDescription>
+            <CardTitle>Upload the document</CardTitle>
+            <CardDescription>Choose the file whose authenticity you want to check.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={submit} className="space-y-5">
+            <form onSubmit={verifyUploadedFile} className="space-y-5">
               <div className="space-y-2">
-                <Label>Document ID</Label>
-                <Input value={docId} onChange={(e) => setDocId(e.target.value)} required />
+                <Label htmlFor="verification-file">Document file</Label>
+                <Input
+                  id="verification-file"
+                  type="file"
+                  onChange={(event) => {
+                    setSelectedFile(event.target.files?.[0] ?? null);
+                    setUploadedFingerprint(null);
+                    setResult(null);
+                  }}
+                />
               </div>
-              <div className="space-y-2">
-                <Label>Computed content fingerprint</Label>
-                <Input value={fp} onChange={(e) => setFp(e.target.value)} required />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Usage context</Label>
-                  <Select value={operation} onValueChange={setOperation}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OPERATIONS.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {selectedFile && (
+                <div className="rounded-xl border border-border bg-muted/30 p-4">
+                  <div className="flex items-center gap-3">
+                    <FileCheck2 className="h-5 w-5 text-primary" />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{selectedFile.name}</div>
+                      <div className="text-xs text-muted-foreground">{formatBytes(selectedFile.size)}</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>App</Label>
-                  <Input value={appName} onChange={(e) => setAppName(e.target.value)} />
-                </div>
-              </div>
-              <Button type="submit" disabled={loading || !session.activeDocument} className="w-full">
+              )}
+              <Button type="submit" disabled={loading || !selectedFile} className="w-full">
                 {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                Verify document
+                {!loading && <UploadCloud className="mr-1.5 h-4 w-4" />}
+                {loading ? "Checking signatures…" : "Upload and verify"}
               </Button>
             </form>
           </CardContent>
@@ -133,16 +105,16 @@ export default function VerifyPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Latest signed document</CardTitle>
-            <CardDescription>This is what gets sent as the nested manifest and history chain.</CardDescription>
+            <CardTitle>What DocShield checks</CardTitle>
+            <CardDescription>The uploaded file is compared with the trusted registry.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <Row label="Tenant" value={session.tenantName} />
-            <Row label="Document ID" value={session.activeDocument?.documentId ?? "None"} mono />
-            <Row label="Manifest hash" value={session.activeDocument?.manifestHash ?? "None"} mono />
-            <Row label="History tip" value={session.activeDocument?.historyTip ?? "None"} mono />
+            <Row label="File fingerprint" value={uploadedFingerprint ?? "Calculated after upload"} mono />
+            <Row label="Registered document" value={result?.document_id ?? "Pending verification"} mono />
+            <Row label="Issuer key" value={result?.issuer_key_id ?? "Pending verification"} mono />
             <div className="rounded-xl border border-border bg-muted/20 p-4 text-xs text-muted-foreground">
-              The backend uses the stored signed manifest and history to validate the fingerprint and policy decision.
+              The backend validates the exact SHA-256 fingerprint, Ed25519 manifest signature, issuer key status, and every
+              signature in the document history chain.
             </div>
           </CardContent>
         </Card>
@@ -151,6 +123,12 @@ export default function VerifyPage() {
       {result && <VerifyResultCard result={result} />}
     </div>
   );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function VerifyResultCard({ result }: { result: VerifyResult }) {
