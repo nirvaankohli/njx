@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -10,6 +11,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from app.models.dto import ManifestClaims, SignatureHistoryEvent
 from app.security.canonical_json import canonical_json_bytes
 from app.security.hashes import canonical_hash
+from app.security.hashes import sha256_hex
 
 
 def make_keypair() -> tuple[str, Ed25519PrivateKey]:
@@ -46,3 +48,6 @@ def utc_ts(value: str) -> str:
 def manifest_hash_for(manifest: ManifestClaims) -> str:
     return canonical_hash(manifest.model_dump(mode="json"))
 
+
+def file_hash_for(path: Path) -> str:
+    return sha256_hex(path.read_bytes())
