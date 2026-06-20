@@ -118,18 +118,22 @@ export default function VerifyPage() {
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Verification request</CardTitle>
-            <CardDescription>Minimal controls, but the payload still matches the backend contract.</CardDescription>
+            <CardTitle>Upload the document</CardTitle>
+            <CardDescription>Choose the file whose authenticity you want to check.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={submit} className="space-y-5">
+            <form onSubmit={verifyUploadedFile} className="space-y-5">
               <div className="space-y-2">
-                <Label>Document ID</Label>
-                <Input value={docId} onChange={(e) => setDocId(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Computed content fingerprint</Label>
-                <Input value={fp} onChange={(e) => setFp(e.target.value)} required />
+                <Label htmlFor="verification-file">Document file</Label>
+                <Input
+                  id="verification-file"
+                  type="file"
+                  onChange={(event) => {
+                    setSelectedFile(event.target.files?.[0] ?? null);
+                    setUploadedFingerprint(null);
+                    setResult(null);
+                  }}
+                />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
