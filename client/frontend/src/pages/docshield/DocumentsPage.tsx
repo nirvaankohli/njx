@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, CircleAlert, Download, FileText, Loader2, ShieldCheck, Upload } from "lucide-react";
+import { BadgeCheck, Building2, Bot, Download, FileText, Link2, Lock, Loader2, ShieldCheck, Upload } from "lucide-react";
 import {
   api,
   type AiTag,
@@ -24,6 +24,7 @@ import {
   toBackendIsoString,
 } from "@/lib/docshield-signing";
 import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
+import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,9 +32,37 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { toast } from "sonner";
 
 const ALL_TAGS: AiTag[] = ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY", "NO_FORWARDING", "PUBLIC_SHARING_BLOCKED"];
+type AccessMode = "organization" | "anyone_with_link" | "password";
+
+const ACCESS_MODES: Array<{
+  value: AccessMode;
+  label: string;
+  description: string;
+  icon: typeof Building2;
+}> = [
+  {
+    value: "organization",
+    label: "People inside Organization",
+    description: "Only teammates in your tenant can unlock this file.",
+    icon: Building2,
+  },
+  {
+    value: "anyone_with_link",
+    label: "Anyone with Link can access",
+    description: "Anyone with the shared link can download the package.",
+    icon: Link2,
+  },
+  {
+    value: "password",
+    label: "It needs a password",
+    description: "People need the download password before they can open it.",
+    icon: Lock,
+  },
+];
 
 type LocalDocument = DocumentManifest & {
   manifestHash: string;
@@ -43,7 +72,9 @@ type LocalDocument = DocumentManifest & {
   sourceFileName?: string;
   sourceFileType?: string;
   sourceFileSize?: number;
-  accessPasswordRequired?: boolean;
+  accessAnyoneWithLink?: boolean;
+  accessMethod?: AccessMode | null;
+  accessPasswordHash?: string | null;
 };
 
 type SignedDocumentSummary = {
@@ -81,13 +112,11 @@ export default function DocumentsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [signedDocument, setSignedDocument] = useState<SignedDocumentSummary | null>(null);
   const [blockAi, setBlockAi] = useState(true);
-  const [secureLink, setSecureLink] = useState(true);
-  const [blockForward, setBlockForward] = useState(true);
-  const [blockPublic, setBlockPublic] = useState(true);
-  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [accessMode, setAccessMode] = useState<AccessMode>("organization");
   const [accessPassword, setAccessPassword] = useState("");
   const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
   const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"]);
+  const selectedAccessMode = ACCESS_MODES.find((entry) => entry.value === accessMode) ?? ACCESS_MODES[0];
 
   function toggleTag(tag: AiTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]));
@@ -102,7 +131,7 @@ export default function DocumentsPage() {
       return;
     }
 
-    if (passwordRequired && (!accessPassword.trim() || accessPassword !== accessPasswordConfirm)) {
+    if (accessMode === "password" && (!accessPassword.trim() || accessPassword !== accessPasswordConfirm)) {
       toast.error("Password mismatch", {
         description: "Enter the same password twice before signing.",
       });
@@ -120,7 +149,9 @@ export default function DocumentsPage() {
       const fingerprint = await fingerprintDocumentFile(selectedFile);
       const createdAt = toBackendIsoString();
       const documentId = buildDocumentId(selectedFile.name, fingerprint);
-      const accessPasswordHash = passwordRequired ? await sha256Hex(accessPassword.trim()) : null;
+      const accessPasswordHash = accessMode === "password" ? await sha256Hex(accessPassword.trim()) : null;
+      const accessAnyoneWithLink = accessMode === "anyone_with_link";
+      const accessMethod = accessMode === "organization" ? "organization" : accessMode === "password" ? "password" : null;
       const manifest = {
         schema_version: "1.0",
         tenant_id: tenantId,
@@ -129,9 +160,9 @@ export default function DocumentsPage() {
         content_fingerprint: fingerprint,
         policy: {
           external_ai_upload: blockAi ? "blocked" : "allowed",
-          secure_link_required: secureLink,
-          forwarding: blockForward ? "blocked" : "allowed",
-          public_sharing: blockPublic ? "blocked" : "allowed",
+          secure_link_required: !accessAnyoneWithLink,
+          forwarding: "blocked",
+          public_sharing: "blocked",
         } as const,
         embedded_ai_tags: tags,
         created_at: createdAt,
@@ -181,7 +212,9 @@ export default function DocumentsPage() {
         sourceFileName: selectedFile.name,
         sourceFileType: fileType,
         sourceFileSize: selectedFile.size,
-        accessPasswordRequired: passwordRequired,
+        accessAnyoneWithLink,
+        accessMethod,
+        accessPasswordHash,
       };
 
       setDocs((current) => [nextDocument, ...current.filter((doc) => doc.document_id !== nextDocument.document_id)]);
@@ -199,7 +232,8 @@ export default function DocumentsPage() {
           sourceFileName: selectedFile.name,
           sourceFileType: fileType,
           sourceFileSize: selectedFile.size,
-          accessPasswordRequired: passwordRequired,
+          accessAnyoneWithLink,
+          accessMethod,
           accessPasswordHash,
         },
       });
@@ -211,6 +245,7 @@ export default function DocumentsPage() {
       });
       setAccessPassword("");
       setAccessPasswordConfirm("");
+      setAccessMode("organization");
       toast.success("Document signed", {
         description: `${selectedFile.name} is now ready to download.`,
       });
@@ -292,69 +327,101 @@ export default function DocumentsPage() {
                 </div>
               </div>
             )}
+
+            {selectedFile && (
+              <Card className="border-border/80 bg-background/70">
+                <CardHeader className="space-y-1.5">
+                  <CardTitle className="text-base">Access rules</CardTitle>
+                  <CardDescription>Choose who can open the signed package.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-3 py-2">
+                    <div className="flex items-center gap-3">
+                      <Bot className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="text-sm font-medium">Block external AI tools</div>
+                        <div className="text-xs text-muted-foreground">Prevent unsupported AI services from receiving this file.</div>
+                      </div>
+                    </div>
+                    <Switch checked={blockAi} onCheckedChange={setBlockAi} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                      Who can access it
+                    </Label>
+                    <Select value={accessMode} onValueChange={(value) => setAccessMode(value as AccessMode)}>
+                      <SelectTrigger className="h-auto min-h-11">
+                        <div className="flex items-center gap-2 text-left">
+                          <selectedAccessMode.icon className="h-4 w-4 text-muted-foreground" />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">{selectedAccessMode.label}</div>
+                            <div className="truncate text-xs text-muted-foreground">{selectedAccessMode.description}</div>
+                          </div>
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACCESS_MODES.map((mode) => (
+                          <SelectItem key={mode.value} value={mode.value}>
+                            <div className="flex items-center gap-2">
+                              <mode.icon className="h-4 w-4 text-muted-foreground" />
+                              <div className="min-w-0">
+                                <div className="truncate">{mode.label}</div>
+                                <div className="truncate text-xs text-muted-foreground">{mode.description}</div>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {accessMode === "password" && (
+                    <div className="space-y-2 rounded-xl border border-border px-3 py-3">
+                      <Label className="flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground" />
+                        Password
+                      </Label>
+                      <Input
+                        type="password"
+                        value={accessPassword}
+                        onChange={(e) => setAccessPassword(e.target.value)}
+                        placeholder="Create a password for the download page"
+                      />
+                      <Input
+                        type="password"
+                        value={accessPasswordConfirm}
+                        onChange={(e) => setAccessPasswordConfirm(e.target.value)}
+                        placeholder="Repeat the password"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="mb-3 text-sm font-medium">Embedded AI tags</div>
+                    <div className="flex flex-wrap gap-3">
+                      {ALL_TAGS.map((tag) => (
+                        <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                          <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
+                          <span className="font-mono text-xs">{humanizeDocShieldLabel(tag)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">Configure the access controls, then sign the file.</p>
+                    <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
+                      {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                      Sign file
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </CardContent>
         </Card>
-
-        {selectedFile && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Access rules</CardTitle>
-              <CardDescription>Pick how this file should be shared.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
-                <PolicyRow label="Private URL required" value={secureLink} onChange={setSecureLink} />
-                <PolicyRow label="Block forwarding" value={blockForward} onChange={setBlockForward} />
-                <PolicyRow label="Block public sharing" value={blockPublic} onChange={setBlockPublic} />
-                <PolicyRow label="Password required" value={passwordRequired} onChange={setPasswordRequired} />
-              </div>
-
-              {passwordRequired && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Access password</Label>
-                    <Input
-                      type="password"
-                      value={accessPassword}
-                      onChange={(e) => setAccessPassword(e.target.value)}
-                      placeholder="Create a password for the download page"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Confirm password</Label>
-                    <Input
-                      type="password"
-                      value={accessPasswordConfirm}
-                      onChange={(e) => setAccessPasswordConfirm(e.target.value)}
-                      placeholder="Repeat the password"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <div className="mb-3 text-sm font-medium">Embedded AI tags</div>
-                <div className="flex flex-wrap gap-3">
-                  {ALL_TAGS.map((tag) => (
-                    <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                      <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
-                      <span className="font-mono text-xs">{tag}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">Configure the access controls, then sign the file.</p>
-                <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
-                  {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                  Sign file
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {signedDocument && (
           <Card>
@@ -423,15 +490,6 @@ export default function DocumentsPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
-
-function PolicyRow({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-      <span className="text-sm">{label}</span>
-      <Switch checked={value} onCheckedChange={onChange} />
     </div>
   );
 }

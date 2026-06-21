@@ -3,6 +3,10 @@ export function humanizeDocShieldLabel(value: string) {
     .replace(/[_-]+/g, " ")
     .trim()
     .split(/\s+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (lower === "ai") return "AI";
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
     .join(" ");
 }
