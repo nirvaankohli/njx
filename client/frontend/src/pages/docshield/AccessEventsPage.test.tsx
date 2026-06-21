@@ -94,4 +94,50 @@ describe("AccessEventsPage", () => {
       expect(normalRow?.className).toContain("border-ring");
     });
   });
+
+  it("filters a long anomaly rail without moving the review panel", async () => {
+    mocks.accessEventsFeed.mockResolvedValueOnce({
+      tenant_id: "tenant_acme",
+      total_events: 2,
+      suspicious_events: 1,
+      events: [
+        {
+          event_id: "ae_contract",
+          tenant_id: "tenant_acme",
+          document_id: "quarterly-contract.pdf",
+          timestamp: "2026-06-20T20:09:00Z",
+          action: "download",
+          country: "US",
+          result: "allowed",
+          risk_score: 20,
+          risk_reasons: [],
+          severity: "low",
+          suspicious: false,
+        },
+        {
+          event_id: "ae_report",
+          tenant_id: "tenant_acme",
+          document_id: "security-report.pdf",
+          timestamp: "2026-06-20T20:08:00Z",
+          action: "download",
+          country: "DE",
+          result: "failed",
+          risk_score: 90,
+          risk_reasons: ["new_geography"],
+          severity: "high",
+          suspicious: true,
+        },
+      ],
+    });
+
+    render(<AccessEventsPage />);
+
+    const search = await screen.findByLabelText("Search anomaly events");
+    fireEvent.change(search, { target: { value: "contract" } });
+
+    expect(screen.getByText("1 event · newest first")).toBeInTheDocument();
+    expect(screen.getAllByText("quarterly-contract.pdf").length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByText("security-report.pdf")).toHaveLength(1));
+    expect(screen.getByText("Selected event")).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Activity, ArrowRight, Clock3, Filter, Loader2, MapPinned, ShieldAlert } from "lucide-react";
+import { AlertCircle, Activity, ArrowRight, Clock3, Filter, Loader2, MapPinned, Search, ShieldAlert, X } from "lucide-react";
 import { api, type AccessEvent, type AccessEventFeedItem, type AccessEventsFeedResponse } from "@/lib/docshield-api";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { mockAccessEventsFeed } from "@/lib/docshield-mock";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
 const ACTIONS: AccessEvent["action"][] = ["open", "download", "token_failed", "verify_attempt", "ai_upload_blocked"];
@@ -150,6 +151,7 @@ export default function AccessEventsPage() {
   const [usingMock, setUsingMock] = useState(false);
   const [loading, setLoading] = useState(true);
   const [viewFilter, setViewFilter] = useState<FeedFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [documentId, setDocumentId] = useState(session.activeDocument?.documentId ?? mockAccessEventsFeed.events[0]?.document_id ?? "");
   const [linkId, setLinkId] = useState("");
@@ -197,14 +199,28 @@ export default function AccessEventsPage() {
 
   const visibleEvents = useMemo(() => {
     const events = feed?.events ?? [];
-    if (viewFilter === "suspicious") {
-      return events.filter((event) => event.suspicious);
-    }
-    if (viewFilter === "high") {
-      return events.filter((event) => event.severity === "high");
-    }
-    return events;
-  }, [feed, viewFilter]);
+    const filteredByRisk = viewFilter === "suspicious"
+      ? events.filter((event) => event.suspicious)
+      : viewFilter === "high"
+        ? events.filter((event) => event.severity === "high")
+        : events;
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) return filteredByRisk;
+
+    return filteredByRisk.filter((event) =>
+      [
+        event.document_id,
+        event.event_id,
+        event.link_id,
+        event.action,
+        event.result,
+        event.country,
+        event.browser,
+        ...event.risk_reasons,
+      ].some((value) => value?.toLowerCase().includes(normalizedQuery)),
+    );
+  }, [feed, searchQuery, viewFilter]);
 
   const suspiciousEvents = useMemo(() => (feed?.events ?? []).filter((event) => event.suspicious), [feed]);
   const highSeverityEvents = useMemo(() => (feed?.events ?? []).filter((event) => event.severity === "high"), [feed]);
@@ -357,53 +373,85 @@ export default function AccessEventsPage() {
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            {FILTERS.map((filter) => (
-              <Button
-                key={filter.id}
-                type="button"
-                size="sm"
-                variant={viewFilter === filter.id ? "default" : "outline"}
-                onClick={() => setViewFilter(filter.id)}
-                className="gap-2"
-                title={filter.description}
-              >
-                {filter.label}
-              </Button>
-            ))}
+          <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              {FILTERS.map((filter) => (
+                <Button
+                  key={filter.id}
+                  type="button"
+                  size="sm"
+                  variant={viewFilter === filter.id ? "default" : "outline"}
+                  onClick={() => setViewFilter(filter.id)}
+                  className="gap-2"
+                  title={filter.description}
+                >
+                  {filter.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:max-w-[280px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search anomaly events"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Find document, link, country…"
+                className="h-9 bg-background pl-9 pr-9"
+              />
+              {searchQuery && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Clear anomaly search"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           </div>
 
-          <Card className="overflow-hidden">
-            <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <Card className="overflow-hidden border-border/60 shadow-none">
+            <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border/60 bg-muted/20">
               <div>
                 <CardTitle className="text-base">Recent events</CardTitle>
-                <CardDescription>Newest first, with suspicious items highlighted in red.</CardDescription>
+                <CardDescription>
+                  {visibleEvents.length} {visibleEvents.length === 1 ? "event" : "events"} · newest first
+                </CardDescription>
               </div>
               <Badge variant="outline" className="text-[10px] font-semibold tracking-[0.08em] uppercase">
                 Live feed
               </Badge>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {visibleEvents.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border/80 p-8 text-sm text-muted-foreground">
-                  No events match the current filter.
+            <CardContent className="p-0">
+              <ScrollArea className="h-[min(68vh,720px)] min-h-[420px]">
+                <div className="space-y-3 p-4 pr-5">
+                  {visibleEvents.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/80 p-8 text-center text-sm text-muted-foreground">
+                      <Search className="mx-auto mb-3 h-5 w-5" />
+                      No events match the current filters.
+                    </div>
+                  ) : (
+                    visibleEvents.map((event) => (
+                      <FeedItemRow
+                        key={event.event_id}
+                        event={event}
+                        selected={selectedEvent?.event_id === event.event_id}
+                        onSelect={setSelectedEventId}
+                      />
+                    ))
+                  )}
                 </div>
-              ) : (
-                visibleEvents.map((event) => (
-                  <FeedItemRow
-                    key={event.event_id}
-                    event={event}
-                    selected={selectedEvent?.event_id === event.event_id}
-                    onSelect={setSelectedEventId}
-                  />
-                ))
-              )}
+              </ScrollArea>
             </CardContent>
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Suspicious rail</CardTitle>
