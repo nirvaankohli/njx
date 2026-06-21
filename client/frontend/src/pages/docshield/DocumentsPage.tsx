@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, Bot, Download, FileText, Loader2, ShieldCheck, Upload } from "lucide-react";
+import { BadgeCheck, Bot, Building2, Download, FileText, Link2, Lock, Loader2, ShieldCheck, Upload } from "lucide-react";
 import {
   api,
   type AiTag,
@@ -41,18 +41,22 @@ type AccessMode = "organization" | "anyone_with_link" | "password";
 const ACCESS_MODES: Array<{
   value: AccessMode;
   label: string;
+  icon: typeof Building2;
 }> = [
   {
     value: "organization",
     label: "People inside Organization",
+    icon: Building2,
   },
   {
     value: "anyone_with_link",
     label: "Anyone with Link can access",
+    icon: Link2,
   },
   {
     value: "password",
     label: "It needs a password",
+    icon: Lock,
   },
 ];
 
@@ -343,7 +347,10 @@ export default function DocumentsPage() {
                       <SelectContent>
                         {ACCESS_MODES.map((mode) => (
                           <SelectItem key={mode.value} value={mode.value}>
-                            {mode.label}
+                            <div className="flex items-center gap-2">
+                              <mode.icon className="h-4 w-4 text-muted-foreground" />
+                              <span>{mode.label}</span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
