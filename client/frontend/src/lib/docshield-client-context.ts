@@ -3,11 +3,14 @@ export type ClientContext = {
   country?: string;
 };
 
-let cachedContext: Promise<ClientContext> | null = null;
+let cachedContext: ClientContext | null = null;
+let cachedLookup: Promise<ClientContext> | null = null;
 
 export function resolveClientContext(): Promise<ClientContext> {
-  if (cachedContext) return cachedContext;
-  cachedContext = (async () => {
+  if (cachedContext) return Promise.resolve(cachedContext);
+  if (cachedLookup) return cachedLookup;
+
+  cachedLookup = (async () => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 1500);
     try {
@@ -25,14 +28,23 @@ export function resolveClientContext(): Promise<ClientContext> {
         ...(/^[A-Z]{2}$/.test(countryValue) ? { country: countryValue } : {}),
       };
     } catch {
+      cachedLookup = null;
       return {};
     } finally {
       window.clearTimeout(timeout);
     }
-  })();
-  return cachedContext;
+  })().then((context) => {
+    if (Object.keys(context).length > 0) {
+      cachedContext = context;
+    } else {
+      cachedLookup = null;
+    }
+    return context;
+  });
+  return cachedLookup;
 }
 
 export function resetClientContextForTests() {
   cachedContext = null;
+  cachedLookup = null;
 }
