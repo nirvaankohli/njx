@@ -1,5 +1,4 @@
 import { DynamicHero } from "@/components/ui/dynamic-hero";
-import heroPreviewAsset from "@/assets/docshield-hero-bg-v2.jpg";
 
 export default function LandingPage() {
   return (
@@ -8,7 +7,6 @@ export default function LandingPage() {
       tagline="Track manifests, review access signals, and open the audit path from one homepage."
       buttonText="Open DocShield"
       buttonHref="/auth"
-      imageUrl={heroPreviewAsset}
       navItems={[
         { id: "home", label: "Home", href: "/" },
         { id: "documents", label: "Documents", href: "/app/documents" },

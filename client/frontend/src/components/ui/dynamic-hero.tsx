@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 
+import heroPreviewAsset from "@/assets/image.png";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
@@ -58,7 +59,7 @@ export function DynamicHero({
   tagline = "Keep manifests, verification, telemetry, and audit exports in one clear homepage flow.",
   buttonText = "Open the console",
   buttonHref = "/auth",
-  imageUrl = "/docshield-hero-bg-v2.jpg",
+  imageUrl = heroPreviewAsset,
   videoUrl,
   navItems = defaultNavItems,
   callToActions = [
