@@ -61,9 +61,11 @@ FILE_TYPES = [
     ("submission-pack.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
 ]
 
-COUNTRIES = ["US", "CA", "GB", "DE", "FR", "IN", "JP", "BR", "AU", "NL"]
+DOMESTIC_COUNTRIES = ["US", "CA"]
+FOREIGN_COUNTRIES = ["GB", "DE", "FR", "IN", "JP", "BR", "AU", "NL"]
+HIGH_RISK_COUNTRY = "PH"
 BROWSERS = ["Chrome", "Safari", "Edge", "Firefox", "Brave"]
-ACTIONS = ["open", "download", "verify_attempt", "token_failed", "ai_upload_blocked"]
+NORMAL_ACTIONS = ["open", "download", "verify_attempt"]
 TAG_POOL = [
     "NO_EXTERNAL_AI",
     "CONFIDENTIAL",
@@ -250,6 +252,12 @@ def build_document_policy(rng: Random, template: PolicyTemplate) -> dict:
     return policy
 
 
+def choose_country(rng: Random, *, allow_foreign: bool = True) -> str:
+    if not allow_foreign or rng.random() < 0.84:
+        return rng.choice(DOMESTIC_COUNTRIES)
+    return rng.choice(FOREIGN_COUNTRIES)
+
+
 def build_history_chain(
     *,
     tenant: TenantSeedContext,
@@ -347,34 +355,27 @@ def build_access_events(
         "country_novelty": 0.0,
     }
 
-    active_countries = rng.sample(COUNTRIES, k=3)
     cursor = base_time
     for index in range(count):
         cursor += timedelta(hours=rng.randint(1, 12), minutes=rng.randint(0, 59))
         timestamp = cursor
-        if suspicious and index >= count - 2:
+        if suspicious and index >= max(0, count - 3):
             action = "download"
             result = "blocked" if index == count - 1 else "allowed"
-            score = 78 if index == count - 1 else 59
-            reasons = ["blocked_attempts", "download_rate_spike"] if index == count - 1 else ["download_spike"]
-            country = "RU" if index == count - 1 else rng.choice(active_countries)
+            score = 84 if index == count - 1 else 92
+            reasons = ["download_rate_spike", "new_geography"]
+            if index == count - 1:
+                reasons.append("blocked_attempts")
+            country = HIGH_RISK_COUNTRY
             browser = "Chrome"
         else:
-            action = rng.choice(ACTIONS)
+            action = rng.choices(NORMAL_ACTIONS, weights=(0.45, 0.25, 0.30), k=1)[0]
             result = "allowed"
-            country = rng.choice(active_countries)
+            country = choose_country(rng)
             browser = rng.choice(BROWSERS)
             if action == "download":
-                score = 24 + (index % 11)
+                score = 18 + (index % 7)
                 reasons = ["model_deviation"] if score > 0 else []
-            elif action == "token_failed":
-                score = 67
-                reasons = ["blocked_attempts"]
-                result = "failed"
-            elif action == "ai_upload_blocked":
-                score = 74
-                reasons = ["blocked_attempts"]
-                result = "blocked"
             elif action == "verify_attempt":
                 score = 18 + (index % 9)
                 reasons = ["stale_activity"] if index % 3 == 0 else []
@@ -408,7 +409,7 @@ def build_access_events(
         latest_vector["download_count_1h"] += 1.0 if action == "download" and index >= count - 3 else 0.0
         latest_vector["download_rate_15m"] = max(0.0, latest_vector["download_rate_15m"] + (1.0 if action == "download" else 0.0))
         latest_vector["blocked_count_24h"] += 1.0 if result == "blocked" else 0.0
-        latest_vector["distinct_countries_7d"] = float(len(set(active_countries + ([country] if country else []))))
+        latest_vector["distinct_countries_7d"] = float(len({event.country for event in events if event.country} | ({country} if country else set())))
         latest_vector["distinct_clients_7d"] = float(index + 1)
         if index > 0:
             latest_vector["minutes_since_previous_event"] = max(0.0, (timestamp - events[index - 1].timestamp).total_seconds() / 60.0)
@@ -583,7 +584,7 @@ def create_document_rows(
             if primary_link_id is None:
                 primary_link_id = link_id
 
-        suspicious = doc_index % 4 == 0
+        suspicious = tenant_index == 0 and doc_index == 0
         access_rows, latest_score, latest_reasons, latest_vector = build_access_events(
             rng=rng,
             tenant_id=tenant.tenant.tenant_id,
