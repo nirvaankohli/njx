@@ -85,6 +85,31 @@ class DocumentORM(Base):
     anomaly_state: Mapped["AnomalyModelStateORM"] = relationship(back_populates="document", cascade="all, delete-orphan", uselist=False)
 
 
+class DocumentContentORM(Base):
+    __tablename__ = "document_contents"
+
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id"), primary_key=True)
+    file_name: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class ShareLinkORM(Base):
+    __tablename__ = "share_links"
+
+    link_id: Mapped[str] = mapped_column(String, primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id"), nullable=False, index=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.tenant_id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    access_method: Mapped[str] = mapped_column(String, default="link", nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class SignatureHistoryEventORM(Base):
     __tablename__ = "signature_history_events"
 
