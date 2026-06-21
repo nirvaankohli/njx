@@ -87,6 +87,7 @@ def describe_share(session: Session, token: str) -> ShareDocumentResponse:
     return ShareDocumentResponse(
         link_id=link.link_id,
         document_id=document.document_id,
+        tenant_id=document.tenant_id,
         file_name=content.file_name,
         content_type=content.content_type,
         size_bytes=content.size_bytes,

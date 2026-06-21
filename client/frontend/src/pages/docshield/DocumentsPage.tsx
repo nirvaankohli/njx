@@ -159,7 +159,7 @@ export default function DocumentsPage() {
       const fileType = inferDocumentMimeType(selectedFile);
       const fingerprint = await fingerprintDocumentFile(selectedFile);
       const createdAt = toBackendIsoString();
-      const documentId = buildDocumentId(selectedFile.name, fingerprint);
+      const documentId = buildDocumentId(fingerprint);
       const accessPasswordHash = accessMode === "password" ? await sha256Hex(accessPassword.trim()) : null;
       const accessAnyoneWithLink = accessMode === "anyone_with_link";
       const accessMethod = accessMode === "organization" ? "organization" : accessMode === "password" ? "password" : null;
@@ -308,7 +308,7 @@ export default function DocumentsPage() {
     e.target.value = "";
   }
 
-  async function copyDownloadImage() {
+  async function copyDownloadLink() {
     if (!signedDocument) return;
     const downloadUrl = `${window.location.origin}/app/documents/${encodeURIComponent(signedDocument.documentId)}/download`;
     await navigator.clipboard.writeText(downloadUrl);
@@ -455,11 +455,11 @@ export default function DocumentsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Signed file ready</CardTitle>
-              <CardDescription>{signedDocument.fileName} is ready for the private download page.</CardDescription>
+              <CardDescription>{signedDocument.documentId} is ready for the private download page.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <SignedField label="Document ID" value={signedDocument.documentId} mono />
+                <SignedField label="Download ID" value={signedDocument.documentId} mono />
                 <SignedField label="Fingerprint" value={signedDocument.fingerprint} mono />
                 <SignedField label="Signed at" value={signedDocument.createdAt} mono />
                 <SignedField label="File name" value={signedDocument.fileName} />
@@ -471,9 +471,9 @@ export default function DocumentsPage() {
                     Open download page
                   </Link>
                 </Button>
-                <Button variant="outline" onClick={() => void copyDownloadImage()}>
+                <Button variant="outline" onClick={() => void copyDownloadLink()}>
                   <Copy className="mr-1.5 h-4 w-4" />
-                  Copy download image
+                  Copy download link
                 </Button>
               </div>
             </CardContent>

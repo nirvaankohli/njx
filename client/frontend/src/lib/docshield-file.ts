@@ -25,16 +25,10 @@ export function inferDocumentMimeType(file: File) {
   return "application/octet-stream";
 }
 
-export function buildDocumentId(fileName: string, fingerprint: string) {
-  const stem =
-    fileName
-      .replace(/\.[^.]+$/, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 28) || "document";
-  const suffix = fingerprint.replace(/^sha256:/, "").slice(0, 10);
-  return `doc_${stem}_${suffix}`;
+export function buildDocumentId(fingerprint: string) {
+  const normalized = fingerprint.replace(/^sha256:/, "");
+  const suffix = normalized.replace(/[^a-f0-9]/gi, "").slice(0, 16);
+  return `doc_${suffix || "document"}`;
 }
 
 export function formatFileSize(bytes: number) {
