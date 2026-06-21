@@ -123,6 +123,7 @@ def record_share_access(
         link_id=link.link_id,
         timestamp=datetime.now(timezone.utc),
         action=action,
+        ip_address=client_ip,
         ip_hash=sha256_hex((client_ip or "unknown").encode()),
         user_agent_hash=sha256_hex((user_agent or "unknown").encode()),
         browser=browser,

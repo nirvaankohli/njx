@@ -27,3 +27,6 @@ def init_db() -> None:
     if "browser" not in columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE access_events ADD COLUMN browser VARCHAR"))
+    if "ip_address" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE access_events ADD COLUMN ip_address VARCHAR"))

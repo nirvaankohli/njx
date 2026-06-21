@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from ipaddress import ip_address
 
 from starlette.datastructures import Headers
 
@@ -11,6 +12,7 @@ COUNTRY_HEADERS = (
     "cloudfront-viewer-country",
     "x-country-code",
     "x-country",
+    "x-client-country",
 )
 
 
@@ -39,3 +41,25 @@ def detect_browser(user_agent: str | None) -> str:
     if re.search(r"bot|crawler|spider|slurp", value, re.IGNORECASE):
         return "Bot"
     return "Unknown"
+
+
+def detect_client_ip(headers: Headers, peer_ip: str | None) -> str | None:
+    candidates = (
+        headers.get("cf-connecting-ip"),
+        headers.get("true-client-ip"),
+        headers.get("x-real-ip"),
+        (headers.get("x-forwarded-for") or "").split(",")[0],
+        peer_ip,
+        headers.get("x-client-ip"),
+    )
+    fallback = None
+    for candidate in candidates:
+        value = (candidate or "").strip()
+        try:
+            parsed = ip_address(value)
+        except ValueError:
+            continue
+        fallback = fallback or str(parsed)
+        if not (parsed.is_private or parsed.is_loopback or parsed.is_link_local):
+            return str(parsed)
+    return fallback

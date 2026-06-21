@@ -77,7 +77,7 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
     token = create_link.json()["token"]
     assert token not in create_link.json()["link_id"]
 
-    opened = client.get(f"/shares/{token}", headers={"X-Country": "DE"})
+    opened = client.get(f"/shares/{token}", headers={"X-Country": "DE", "X-Client-IP": "8.8.8.8"})
     assert opened.status_code == 200
     assert opened.json()["content_fingerprint"] == sha256_hex(content)
 
@@ -99,6 +99,7 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
 
     feed = client.get("/access-events", params={"tenant_id": "tenant_acme"}).json()
     assert {event["country"] for event in feed["events"]} == {"DE", "US"}
+    assert {event["ip_address"] for event in feed["events"]} == {"8.8.8.8", None}
     assert all(event["browser"].startswith("TestClient") or event["browser"] == "Unknown" for event in feed["events"])
     assert any(event["risk_score"] > 0 for event in feed["events"])
     download_event = next(event for event in feed["events"] if event["action"] == "download")

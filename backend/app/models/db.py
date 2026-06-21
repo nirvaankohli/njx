@@ -139,6 +139,7 @@ class AccessEventORM(Base):
     link_id: Mapped[str | None] = mapped_column(String, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     action: Mapped[str] = mapped_column(String, nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
     ip_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     user_agent_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     browser: Mapped[str | None] = mapped_column(String, nullable=True)
