@@ -100,6 +100,30 @@ export type DocumentRegistrationResponse = {
   history_tip: string;
 };
 
+export type DocumentSummary = {
+  document_id: string;
+  tenant_id: string;
+  issuer_key_id: string;
+  content_fingerprint: string;
+  policy: PolicyTemplate;
+  embedded_ai_tags: AiTag[];
+  created_at: string;
+  status: "active" | "revoked";
+  file_name: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  access_method: "link" | "password" | "organization" | null;
+  event_count: number;
+};
+
+export type DocumentDetail = DocumentSummary & {
+  manifest: Record<string, unknown>;
+  manifest_hash: string;
+  history_tip: string;
+  last_verified_status: string | null;
+  last_verified_at: string | null;
+};
+
 export type HistoryAppendResponse = {
   document_id: string;
   event_id: string;
@@ -301,6 +325,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  documents: (
+    tenantId = getDocShieldSession().tenantId,
+    filters: { status?: "active" | "revoked"; query?: string } = {},
+  ) =>
+    request<DocumentSummary[]>(
+      buildUrl("/documents", { tenant_id: tenantId, status: filters.status, query: filters.query }),
+      { method: "GET" },
+    ),
+  document: (documentId: string, tenantId = getDocShieldSession().tenantId) =>
+    request<DocumentDetail>(
+      buildUrl(`/documents/${encodeURIComponent(documentId)}`, { tenant_id: tenantId }),
+      { method: "GET" },
+    ),
+  deleteDocument: (documentId: string, tenantId = getDocShieldSession().tenantId) =>
+    request<void>(
+      buildUrl(`/documents/${encodeURIComponent(documentId)}`, { tenant_id: tenantId }),
+      { method: "DELETE" },
+    ),
   uploadDocumentContent: async (documentId: string, file: File) => {
     const response = await fetch(buildUrl(`/documents/${encodeURIComponent(documentId)}/content`), {
       method: "PUT",
