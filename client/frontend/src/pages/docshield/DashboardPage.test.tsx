@@ -67,6 +67,7 @@ describe("DashboardPage", () => {
     );
 
     expect(await screen.findByRole("link", { name: /quarterly-report\.pdf/ })).toBeInTheDocument();
+    expect(screen.getByText("Global download heatmap")).toBeInTheDocument();
     expect(screen.getAllByText("quarterly-report.pdf")).toHaveLength(3);
     expect(screen.getByText("2", { selector: "h3" })).toBeInTheDocument();
     expect(apiMocks.dashboard).toHaveBeenCalledWith("tenant_acme");
