@@ -16,14 +16,18 @@ export function DocShieldBrand({
   taglineClassName,
 }: DocShieldBrandProps) {
   const resolvedTaglineClassName = taglineClassName ?? "opacity-70";
-  const logoSrc = variant === "icon" ? "/docshield-mark.png" : "/docshield-wordmark.png";
+  const logoSrc = "/branding.svg";
 
   return (
     <div className={cn("flex flex-col items-start gap-1.5", className)}>
       <img
         src={logoSrc}
         alt="DocShield"
-        className={cn("block shrink-0", variant === "wordmark" ? "object-cover" : "object-contain", logoClassName)}
+        className={cn(
+          "block shrink-0 object-contain",
+          variant === "wordmark" ? "object-left" : "object-center",
+          logoClassName,
+        )}
       />
       {showTagline && <div className={cn("text-[11px] leading-tight", resolvedTaglineClassName)}>Signed documents, live in dev</div>}
     </div>
