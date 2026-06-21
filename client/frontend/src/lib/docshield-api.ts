@@ -330,17 +330,17 @@ export const api = {
     filters: { status?: "active" | "revoked"; query?: string } = {},
   ) =>
     request<DocumentSummary[]>(
-      buildUrl("/documents", { tenant_id: tenantId, status: filters.status, query: filters.query }),
+      buildQueryPath("/documents", { tenant_id: tenantId, status: filters.status, query: filters.query }),
       { method: "GET" },
     ),
   document: (documentId: string, tenantId = getDocShieldSession().tenantId) =>
     request<DocumentDetail>(
-      buildUrl(`/documents/${encodeURIComponent(documentId)}`, { tenant_id: tenantId }),
+      buildQueryPath(`/documents/${encodeURIComponent(documentId)}`, { tenant_id: tenantId }),
       { method: "GET" },
     ),
   deleteDocument: (documentId: string, tenantId = getDocShieldSession().tenantId) =>
     request<void>(
-      buildUrl(`/documents/${encodeURIComponent(documentId)}`, { tenant_id: tenantId }),
+      buildQueryPath(`/documents/${encodeURIComponent(documentId)}`, { tenant_id: tenantId }),
       { method: "DELETE" },
     ),
   uploadDocumentContent: async (documentId: string, file: File) => {
@@ -441,8 +441,10 @@ function clientContextHeaders(context: { ipAddress?: string; country?: string })
   };
 }
 
-function buildQueryPath(path: string, query: Record<string, string>) {
-  const queryString = new URLSearchParams(query).toString();
+function buildQueryPath(path: string, query: Record<string, string | undefined>) {
+  const queryString = new URLSearchParams(
+    Object.entries(query).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  ).toString();
   return queryString ? `${path}?${queryString}` : path;
 }
 
