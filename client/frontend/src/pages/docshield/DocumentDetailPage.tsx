@@ -252,6 +252,7 @@ export default function DocumentDetailPage() {
             <div className="grid gap-3 sm:grid-cols-3">
               <Metric label="Link opens" value={analytics?.opens ?? 0} />
               <Metric label="Downloads" value={analytics?.downloads ?? 0} />
+              <Metric label="Download rate / hr" value={analytics?.download_rate_per_hour?.toFixed(1) ?? "0.0"} />
               <Metric label="Countries" value={Object.keys(analytics?.countries ?? {}).length} />
             </div>
             {analytics && Object.keys(analytics.countries).length > 0 && (
@@ -380,6 +381,6 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ label, value }: { label: string; value: number | string }) {
   return <div className="rounded-xl border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-semibold">{value}</div></div>;
 }

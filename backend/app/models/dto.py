@@ -217,6 +217,7 @@ class ShareAnalyticsResponse(BaseModel):
     document_id: str
     opens: int
     downloads: int
+    download_rate_per_hour: float
     countries: dict[str, int] = Field(default_factory=dict)
 
 

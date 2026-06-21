@@ -27,6 +27,7 @@ class FeatureSpec:
 FEATURE_SPECS: tuple[FeatureSpec, ...] = (
     FeatureSpec("download_count_24h", prior_mean=0.75, prior_variance=2.25, reason_high="download_spike"),
     FeatureSpec("download_count_1h", prior_mean=0.15, prior_variance=1.0, reason_high="burst_access"),
+    FeatureSpec("download_rate_15m", prior_mean=0.15, prior_variance=1.5, reason_high="download_rate_spike"),
     FeatureSpec("blocked_count_24h", prior_mean=0.0, prior_variance=0.5, reason_high="blocked_attempts"),
     FeatureSpec("distinct_countries_7d", prior_mean=1.0, prior_variance=0.75, reason_high="new_geography"),
     FeatureSpec("distinct_clients_7d", prior_mean=1.0, prior_variance=0.75, reason_high="multi_client_clusters"),
@@ -64,10 +65,12 @@ def _build_feature_vector(events: list[AccessEventORM], current_event: AccessEve
     current_ts = _ensure_aware(current_event.timestamp)
     last_24h = current_ts - timedelta(hours=24)
     last_1h = current_ts - timedelta(hours=1)
+    last_15m = current_ts - timedelta(minutes=15)
     last_7d = current_ts - timedelta(days=7)
 
     recent_24h = _window_events(events, last_24h)
     recent_1h = _window_events(events, last_1h)
+    recent_15m = _window_events(events, last_15m)
     recent_7d = _window_events(events, last_7d)
     previous_events = [event for event in events if event.event_id != current_event.event_id and _ensure_aware(event.timestamp) <= current_ts]
 
@@ -76,6 +79,7 @@ def _build_feature_vector(events: list[AccessEventORM], current_event: AccessEve
 
     downloads_24h = sum(1 for event in recent_24h if event.action == "download")
     downloads_1h = sum(1 for event in recent_1h if event.action == "download")
+    download_rate_15m = sum(1 for event in recent_15m if event.action == "download") / 0.25
     blocked_24h = sum(1 for event in recent_24h if event.result == "blocked")
     distinct_countries_7d = len({event.country for event in recent_7d if event.country})
     distinct_clients_7d = len({_client_signature(event) for event in recent_7d if event.ip_hash or event.user_agent_hash})
@@ -87,6 +91,7 @@ def _build_feature_vector(events: list[AccessEventORM], current_event: AccessEve
     return {
         "download_count_24h": float(downloads_24h),
         "download_count_1h": float(downloads_1h),
+        "download_rate_15m": float(download_rate_15m),
         "blocked_count_24h": float(blocked_24h),
         "distinct_countries_7d": float(distinct_countries_7d),
         "distinct_clients_7d": float(distinct_clients_7d),

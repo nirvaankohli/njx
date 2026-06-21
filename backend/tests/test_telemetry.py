@@ -136,3 +136,34 @@ def test_access_events_feed_returns_newest_first_with_risk_metadata(client):
     assert isinstance(feed["events"][0]["risk_reasons"], list)
     assert isinstance(feed["events"][0]["severity"], str)
     assert isinstance(feed["events"][0]["suspicious"], bool)
+
+
+def test_access_events_feed_flags_download_rate_spike(client):
+    _register_document(client)
+    base_time = datetime(2026, 6, 20, 21, 0, tzinfo=timezone.utc)
+    for index in range(8):
+        response = client.post(
+            "/access-events",
+            json={
+                "event_id": f"burst_{index:03d}",
+                "tenant_id": "tenant_acme",
+                "document_id": "doc_telemetry",
+                "link_id": "link_buyerco_001",
+                "timestamp": (base_time + timedelta(minutes=index)).isoformat().replace("+00:00", "Z"),
+                "action": "download",
+                "ip_hash": "sha256:burst-ip",
+                "user_agent_hash": "sha256:burst-ua",
+                "country": "US",
+                "result": "allowed",
+                "reason": None,
+            },
+        )
+        assert response.status_code == 200
+
+    feed_response = client.get("/access-events", params={"tenant_id": "tenant_acme", "limit": 10})
+    assert feed_response.status_code == 200
+    feed = feed_response.json()
+
+    assert feed["events"][0]["event_id"] == "burst_007"
+    assert "download_rate_spike" in feed["events"][0]["risk_reasons"]
+    assert feed["events"][0]["suspicious"] is True

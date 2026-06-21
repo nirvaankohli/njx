@@ -136,12 +136,26 @@ def share_analytics(session: Session, document_id: str) -> ShareAnalyticsRespons
         raise NotFoundError(f"Document {document_id} not found")
     events = session.scalars(select(AccessEventORM).where(AccessEventORM.document_id == document_id)).all()
     countries: dict[str, int] = {}
+    download_timestamps = []
+    download_count = 0
     for event in events:
         country = event.country or "unknown"
         countries[country] = countries.get(country, 0) + 1
+        if event.action == "download":
+            download_timestamps.append(event.timestamp)
+            download_count += 1
+
+    if len(download_timestamps) > 1:
+        first_download = min(download_timestamps)
+        last_download = max(download_timestamps)
+        span_hours = max((last_download - first_download).total_seconds() / 3600.0, 1.0)
+    else:
+        span_hours = 1.0
+
     return ShareAnalyticsResponse(
         document_id=document_id,
         opens=sum(event.action == "open" for event in events),
-        downloads=sum(event.action == "download" for event in events),
+        downloads=download_count,
+        download_rate_per_hour=(download_count / span_hours) if events else 0.0,
         countries=countries,
     )
