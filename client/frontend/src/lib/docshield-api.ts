@@ -149,6 +149,7 @@ export type AccessEvent = {
   action: "open" | "download" | "token_failed" | "verify_attempt" | "ai_upload_blocked";
   ip_hash?: string | null;
   user_agent_hash?: string | null;
+  browser?: string | null;
   country?: string | null;
   result?: "allowed" | "blocked" | "failed";
   reason?: string | null;

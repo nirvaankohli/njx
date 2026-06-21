@@ -31,6 +31,22 @@ function formatTimestamp(timestamp: string) {
   });
 }
 
+function currentBrowser(): string {
+  const userAgent = navigator.userAgent;
+  const matchers: [RegExp, string][] = [
+    [/(?:Edg|EdgiOS|EdgA)\/([\d.]+)/, "Edge"],
+    [/(?:OPR|Opera)\/([\d.]+)/, "Opera"],
+    [/(?:CriOS|Chrome)\/([\d.]+)/, "Chrome"],
+    [/(?:FxiOS|Firefox)\/([\d.]+)/, "Firefox"],
+    [/Version\/([\d.]+).+Safari\//, "Safari"],
+  ];
+  for (const [pattern, family] of matchers) {
+    const match = userAgent.match(pattern);
+    if (match) return `${family} ${match[1].split(".")[0]}`;
+  }
+  return "Unknown";
+}
+
 function severityFromScore(score: number): AccessEventFeedItem["severity"] {
   if (score >= 80) return "high";
   if (score >= 50) return "medium";
@@ -109,6 +125,7 @@ function FeedItemRow({
           {event.result}
         </Badge>
         <span className="text-muted-foreground">Country {event.country ?? "unknown"}</span>
+        <span className="text-muted-foreground">Browser {event.browser ?? "unknown"}</span>
         <span className={cn("font-medium", event.suspicious ? "text-red-600 dark:text-red-300" : "text-muted-foreground")}>
           Score {event.risk_score}
         </span>
@@ -219,6 +236,7 @@ export default function AccessEventsPage() {
       action,
       ip_hash: `sha256:ip-${Math.random().toString(16).slice(2, 6)}`,
       user_agent_hash: `sha256:ua-${Math.random().toString(16).slice(2, 6)}`,
+      browser: currentBrowser(),
       country,
       result,
       reason: reason || null,
@@ -458,6 +476,7 @@ export default function AccessEventsPage() {
                     <DetailField label="Action" value={selectedEvent.action} />
                     <DetailField label="Result" value={selectedEvent.result ?? "allowed"} />
                     <DetailField label="Country" value={selectedEvent.country ?? "unknown"} />
+                    <DetailField label="Browser" value={selectedEvent.browser ?? "unknown"} />
                     <DetailField label="Timestamp" value={formatTimestamp(selectedEvent.timestamp)} />
                     <DetailField label="Document" value={selectedEvent.document_id} />
                     <DetailField label="Link ID" value={selectedEvent.link_id ?? "none"} />
