@@ -232,6 +232,7 @@ class ShareLinkResponse(BaseModel):
 class ShareDocumentResponse(BaseModel):
     link_id: str
     document_id: str
+    tenant_id: str
     file_name: str
     content_type: str
     size_bytes: int

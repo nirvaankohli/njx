@@ -139,7 +139,7 @@ describe("DocumentsPage", () => {
       expect(screen.getAllByText("agreement.pdf")).toHaveLength(3);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy download image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy download link" }));
 
     expect(writeText).toHaveBeenCalledWith(
       `${window.location.origin}/app/documents/doc_agreement_abc123/download`,

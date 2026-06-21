@@ -213,6 +213,7 @@ export type ShareLinkResponse = {
 export type SharedDocument = {
   link_id: string;
   document_id: string;
+  tenant_id: string;
   file_name: string;
   content_type: string;
   size_bytes: number;
