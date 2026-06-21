@@ -79,11 +79,11 @@ def _build_feature_vector(events: list[AccessEventORM], current_event: AccessEve
 
     downloads_24h = sum(1 for event in recent_24h if event.action == "download")
     downloads_1h = sum(1 for event in recent_1h if event.action == "download")
-    download_rate_15m = sum(1 for event in recent_15m if event.action == "download") / 0.25
+    download_rate_15m = max(0, sum(1 for event in recent_15m if event.action == "download") - 1) / 0.25
     blocked_24h = sum(1 for event in recent_24h if event.result == "blocked")
     distinct_countries_7d = len({event.country for event in recent_7d if event.country})
     distinct_clients_7d = len({_client_signature(event) for event in recent_7d if event.ip_hash or event.user_agent_hash})
-    country_novelty = 1.0 if current_event.country and current_event.country not in prior_countries else 0.0
+    country_novelty = 1.0 if prior_countries and current_event.country and current_event.country not in prior_countries else 0.0
     minutes_since_previous_event = (
         max(0.0, (current_ts - prior_ts).total_seconds() / 60.0) if prior_ts is not None else FEATURE_SPECS[FEATURE_INDEX["minutes_since_previous_event"]].prior_mean
     )
@@ -245,7 +245,8 @@ def score_access_event(session: Session, event: AccessEvent) -> tuple[int, list[
         reconstruction_error = float(torch.mean(residuals.pow(2)).item())
     # The statistical floor prevents a strong feature deviation from being hidden
     # by an under-trained autoencoder or an unusually low reconstruction residual.
-    combined_error = max(reconstruction_error, _statistical_error(z_scores) * 0.75)
+    statistical_error = _statistical_error(z_scores) * 0.75
+    combined_error = statistical_error if state.sample_count < WARMUP_SAMPLES else max(reconstruction_error, statistical_error)
     score = _score_from_error(combined_error)
     reasons = _reason_codes(z_scores, residuals)
     if event.result == "blocked":

@@ -101,6 +101,8 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
     assert {event["country"] for event in feed["events"]} == {"DE", "US"}
     assert all(event["browser"].startswith("TestClient") or event["browser"] == "Unknown" for event in feed["events"])
     assert any(event["risk_score"] > 0 for event in feed["events"])
+    download_event = next(event for event in feed["events"] if event["action"] == "download")
+    assert download_event["risk_score"] < 50
 
     verified = client.post("/verify/file", content=downloaded.content)
     assert verified.status_code == 200
