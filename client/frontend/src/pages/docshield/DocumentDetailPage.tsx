@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus } from "lucide-react";
+import { ArrowLeft, BarChart3, Copy, Link2, Loader2, Plus } from "lucide-react";
 import {
   api,
   type DocumentManifest,
+  type ShareAnalytics,
   type SignedHistoryEventPayload,
 } from "@/lib/docshield-api";
 import { mockDocuments, mockHistory } from "@/lib/docshield-mock";
@@ -33,6 +34,8 @@ export default function DocumentDetailPage() {
   const [history, setHistory] = useState<SignedHistoryEventPayload[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sharingBusy, setSharingBusy] = useState(false);
+  const [analytics, setAnalytics] = useState<ShareAnalytics | null>(null);
 
   const [action, setAction] = useState<typeof ACTIONS[number]>("sent");
   const [actorOrg, setActorOrg] = useState("BuyerCo");
@@ -77,6 +80,47 @@ export default function DocumentDetailPage() {
 
   const manifestHash = useMemo(() => activeDocumentManifestHash ?? `sha256:${documentId}`, [documentId, activeDocumentManifestHash]);
   const previousEventHash = activeDocumentHistoryTip;
+  const shareLink = session.activeDocument?.documentId === documentId ? session.activeDocument.shareLink : null;
+  const shareUrl = shareLink ? `${window.location.origin}/s/${shareLink.token}` : null;
+
+  useEffect(() => {
+    if (activeDocumentId !== documentId) return;
+    api.shareAnalytics(documentId).then(setAnalytics).catch(() => setAnalytics(null));
+  }, [activeDocumentId, documentId, shareLink?.linkId]);
+
+  async function createSecureLink() {
+    if (!session.activeDocument || session.activeDocument.documentId !== documentId) return;
+    setSharingBusy(true);
+    try {
+      const method = session.activeDocument.accessAnyoneWithLink
+        ? "link"
+        : session.activeDocument.accessMethod ?? "organization";
+      const link = await api.createShareLink(documentId, {
+        access_method: method,
+        password_hash: session.activeDocument.accessPasswordHash,
+        expires_in_hours: 168,
+      });
+      updateDocShieldSession({
+        activeDocument: {
+          ...session.activeDocument,
+          shareLink: { linkId: link.link_id, token: link.token, expiresAt: link.expires_at },
+        },
+      });
+      toast.success("Secure link created", { description: "It expires in seven days and every access is tracked." });
+    } catch (error) {
+      toast.error("Could not create secure link", {
+        description: error instanceof Error ? error.message : "The sharing service is unavailable.",
+      });
+    } finally {
+      setSharingBusy(false);
+    }
+  }
+
+  async function copyShareLink() {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    toast.success("Secure link copied");
+  }
 
   async function addEvent(e: React.FormEvent) {
     e.preventDefault();
@@ -183,6 +227,39 @@ export default function DocumentDetailPage() {
       ) : (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">Document not found.</CardContent>
+        </Card>
+      )}
+
+      {doc && activeDocumentId === documentId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><Link2 className="h-4 w-4" />Secure sharing</CardTitle>
+            <CardDescription>Create a random, expiring link. Raw tokens are never stored by the backend.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {shareUrl ? (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input value={shareUrl} readOnly className="font-mono text-xs" aria-label="Secure share link" />
+                <Button onClick={() => void copyShareLink()}><Copy className="mr-2 h-4 w-4" />Copy</Button>
+              </div>
+            ) : (
+              <Button onClick={() => void createSecureLink()} disabled={sharingBusy}>
+                {sharingBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}
+                Generate secure link
+              </Button>
+            )}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Metric label="Link opens" value={analytics?.opens ?? 0} />
+              <Metric label="Downloads" value={analytics?.downloads ?? 0} />
+              <Metric label="Countries" value={Object.keys(analytics?.countries ?? {}).length} />
+            </div>
+            {analytics && Object.keys(analytics.countries).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                {Object.entries(analytics.countries).map(([country, count]) => <Badge key={country} variant="outline">{country}: {count}</Badge>)}
+              </div>
+            )}
+          </CardContent>
         </Card>
       )}
 
@@ -300,4 +377,8 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
       <div className={`mt-1 ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</div>
     </div>
   );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-xl border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 text-2xl font-semibold">{value}</div></div>;
 }
