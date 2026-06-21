@@ -7,6 +7,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useMemo } from "react";
 import { DocShieldBrand } from "@/components/DocShieldBrand";
+import { cn } from "@/lib/utils";
+import heroBackdropAsset from "@/assets/docshield-hero-bg-v2.jpg";
 
 const features = [
   {
@@ -44,41 +46,89 @@ const motions = {
   }),
 };
 
-function GrainientBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
+const heroStats = [
+  {
+    label: "Signed docs",
+    value: "Manifest + history",
+  },
+  {
+    label: "Telemetry",
+    value: "Open, download, failure",
+  },
+  {
+    label: "Audit exports",
+    value: "One click away",
+  },
+];
+
+const heroSteps = [
+  {
+    step: "01",
+    title: "Create the tenant",
+    body: "Register org details, policy templates, and the local signing key once.",
+  },
+  {
+    step: "02",
+    title: "Sign the document",
+    body: "Issue the manifest and initial history event so the chain starts clean.",
+  },
+  {
+    step: "03",
+    title: "Verify and export",
+    body: "Recheck integrity, review access signals, and open the audit bundle.",
+  },
+];
+
+function HeroBackdrop({
+  reducedMotion,
+  isDark,
+}: {
+  reducedMotion: boolean;
+  isDark: boolean;
+}) {
   const layers = useMemo(
     () => [
       {
-        background:
-          "radial-gradient(circle at 20% 22%, rgba(255,255,255,0.20), transparent 24%), radial-gradient(circle at 78% 30%, rgba(93, 76, 255, 0.28), transparent 22%), radial-gradient(circle at 44% 68%, rgba(0, 200, 155, 0.16), transparent 26%)",
-        opacity: 0.95,
-      },
-      {
-        background:
-          "linear-gradient(112deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.0) 42%, rgba(255,255,255,0.09) 68%, rgba(255,255,255,0.0) 100%)",
-        opacity: 0.8,
-      },
-      {
-        background:
-          "radial-gradient(circle at 45% 46%, rgba(255,255,255,0.08), rgba(255,255,255,0.03) 30%, transparent 70%)",
+        background: isDark
+          ? "radial-gradient(circle at 20% 20%, rgba(88, 92, 255, 0.24), transparent 28%), radial-gradient(circle at 80% 30%, rgba(32, 196, 167, 0.16), transparent 24%), radial-gradient(circle at 40% 78%, rgba(255,255,255,0.09), transparent 24%)"
+          : "radial-gradient(circle at 20% 20%, rgba(88, 92, 255, 0.12), transparent 28%), radial-gradient(circle at 80% 30%, rgba(32, 196, 167, 0.08), transparent 24%), radial-gradient(circle at 40% 78%, rgba(15,23,42,0.07), transparent 24%)",
         opacity: 1,
       },
+      {
+        background: isDark
+          ? "linear-gradient(112deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.0) 42%, rgba(255,255,255,0.09) 68%, rgba(255,255,255,0.0) 100%)"
+          : "linear-gradient(112deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.0) 42%, rgba(15,23,42,0.05) 68%, rgba(15,23,42,0.0) 100%)",
+        opacity: 0.78,
+      },
+      {
+        background: isDark
+          ? "radial-gradient(circle at 45% 46%, rgba(255,255,255,0.08), rgba(255,255,255,0.03) 30%, transparent 70%)"
+          : "radial-gradient(circle at 45% 46%, rgba(255,255,255,0.7), rgba(255,255,255,0.3) 30%, transparent 70%)",
+        opacity: isDark ? 1 : 0.6,
+      },
     ],
-    [],
+    [isDark],
   );
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#050505]">
+    <div
+      className={cn(
+        "absolute inset-0 overflow-hidden",
+        isDark ? "bg-[#050816]" : "bg-slate-50",
+      )}
+    >
       <div
         className="absolute inset-0"
         style={{
-          background:
-            "radial-gradient(circle at 20% 20%, rgba(88, 92, 255, 0.22), transparent 34%), radial-gradient(circle at 80% 35%, rgba(32, 196, 167, 0.14), transparent 28%), radial-gradient(circle at 50% 85%, rgba(255,255,255,0.08), transparent 28%), linear-gradient(112deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.60) 38%, rgba(0,0,0,0.90) 100%)",
+          background: isDark
+            ? "radial-gradient(circle at 20% 20%, rgba(88, 92, 255, 0.22), transparent 34%), radial-gradient(circle at 80% 35%, rgba(32, 196, 167, 0.14), transparent 28%), radial-gradient(circle at 50% 85%, rgba(255,255,255,0.08), transparent 28%), linear-gradient(112deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.58) 38%, rgba(0,0,0,0.88) 100%)"
+            : "radial-gradient(circle at 20% 20%, rgba(88, 92, 255, 0.12), transparent 34%), radial-gradient(circle at 80% 35%, rgba(32, 196, 167, 0.08), transparent 28%), radial-gradient(circle at 50% 85%, rgba(15,23,42,0.06), transparent 28%), linear-gradient(112deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.58) 38%, rgba(255,255,255,0.88) 100%)",
         }}
       />
       <motion.div
         aria-hidden
         className="absolute inset-[-8%] will-change-transform"
-        animate={reducedMotion ? undefined : { scale: [1, 1.045, 1], rotate: [0, 4, 0] }}
+        animate={reducedMotion ? undefined : { scale: [1, 1.035, 1], rotate: [0, 3, 0] }}
         transition={reducedMotion ? undefined : { duration: 28, repeat: Infinity, ease: "linear" }}
       >
         {layers.map((layer, index) => (
@@ -93,19 +143,23 @@ function GrainientBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
       </motion.div>
       <div
         aria-hidden
-        className="absolute inset-0 opacity-[0.18] mix-blend-soft-light"
+        className={cn("absolute inset-0 mix-blend-soft-light", isDark ? "opacity-[0.18]" : "opacity-[0.09]")}
         style={{
           backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
+            isDark
+              ? "linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)"
+              : "linear-gradient(rgba(15,23,42,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.05) 1px, transparent 1px)",
           backgroundSize: "64px 64px",
         }}
       />
       <div
         aria-hidden
-        className="absolute inset-0 opacity-[0.18]"
+        className={cn("absolute inset-0", isDark ? "opacity-[0.18]" : "opacity-[0.08]")}
         style={{
           backgroundImage:
-            "radial-gradient(circle at center, rgba(255,255,255,0.05) 0.5px, transparent 0.5px)",
+            isDark
+              ? "radial-gradient(circle at center, rgba(255,255,255,0.05) 0.5px, transparent 0.5px)"
+              : "radial-gradient(circle at center, rgba(15,23,42,0.05) 0.5px, transparent 0.5px)",
           backgroundSize: "3px 3px",
           mixBlendMode: "overlay",
         }}
@@ -116,41 +170,42 @@ function GrainientBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
 }
 
 export default function LandingPage() {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const reducedMotion = useReducedMotion() ?? false;
+  const isDark = resolvedTheme !== "light";
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-background/50 backdrop-blur-xl">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-border/70 bg-background/75 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Link to="/" className="flex items-start">
             <DocShieldBrand
               showTagline
-              className="text-white"
+              className="items-start"
               variant="wordmark"
               logoClassName="h-10 w-[196px]"
-              taglineClassName="text-[11px] text-white/[0.55]"
+              taglineClassName="text-[11px] text-muted-foreground"
             />
           </Link>
 
-          <nav className="hidden items-center gap-6 text-sm text-white/[0.65] md:flex">
-            <a href="#features" className="transition-colors hover:text-white">Features</a>
-            <a href="#workflow" className="transition-colors hover:text-white">Workflow</a>
-            <a href="#reference" className="transition-colors hover:text-white">Api</a>
+          <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
+            <a href="#features" className="transition-colors hover:text-foreground">Features</a>
+            <a href="#workflow" className="transition-colors hover:text-foreground">Workflow</a>
+            <a href="#reference" className="transition-colors hover:text-foreground">API</a>
           </nav>
 
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="relative h-9 w-9 rounded-full border border-border/70 bg-background/60 text-foreground hover:bg-accent hover:text-accent-foreground"
+              onClick={() => setTheme(isDark ? "light" : "dark")}
               aria-label="Toggle theme"
             >
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
-            <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white">
+            <Button asChild variant="outline" className="border-border/70 bg-background/60 backdrop-blur-sm">
               <Link to="/auth">Sign in</Link>
             </Button>
           </div>
@@ -159,7 +214,7 @@ export default function LandingPage() {
 
       <main>
         <section className="relative isolate min-h-screen overflow-hidden pt-16">
-          <GrainientBackdrop reducedMotion={reducedMotion} />
+          <HeroBackdrop reducedMotion={reducedMotion} isDark={isDark} />
           <div className="relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-12 px-6 py-16 md:grid-cols-[1.15fr_0.85fr] md:py-24">
             <motion.div
               initial="hidden"
@@ -168,27 +223,28 @@ export default function LandingPage() {
               custom={0}
               className="max-w-3xl"
             >
-            <Badge className="mb-5 border border-white/15 bg-white/[0.08] px-3 py-1 text-[11px] font-medium tracking-[0.16em] text-white/[0.85]">
+              <Badge className="mb-5 border border-border/70 bg-card/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-muted-foreground backdrop-blur-sm">
                 <Sparkles className="mr-1 h-3.5 w-3.5" />
-                React Bits Grainient hero
+                DocShield dev console
               </Badge>
               <motion.h1
                 variants={motions}
                 custom={1}
-                className="text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl"
+                className="text-balance max-w-3xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
               >
                 Make every document feel signed, secure, and ready for the first dev demo.
               </motion.h1>
               <motion.p
                 variants={motions}
                 custom={2}
-                className="mt-6 max-w-2xl text-pretty text-base leading-7 text-white/[0.72] sm:text-lg"
+                className="mt-6 max-w-2xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg"
               >
-                DocShield keeps manifests, histories, verification, telemetry, and exports in one MVP flow. The new
-                hero background gives the landing page some atmosphere, while the backend contract stays honest.
+                DocShield keeps manifests, histories, verification, telemetry, and exports in one MVP flow. The page
+                now leans on the same brand language as the app: cleaner borders, softer contrast, and a stronger
+                editorial rhythm.
               </motion.p>
               <motion.div variants={motions} custom={3} className="mt-8 flex flex-wrap gap-3">
-                <Button asChild size="lg" className="h-12 px-5 bg-white text-black hover:bg-white/90">
+                <Button asChild size="lg" className="h-12 px-5">
                   <Link to="/app">
                     Open the console
                     <ArrowRight className="ml-2 h-4 w-4" />
@@ -198,11 +254,25 @@ export default function LandingPage() {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="h-12 px-5 border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                  className="h-12 px-5 border-border/70 bg-background/60 backdrop-blur-sm"
                 >
                   <a href="#workflow">See the workflow</a>
                 </Button>
               </motion.div>
+
+              <div className="mt-10 grid gap-3 sm:grid-cols-3">
+                {heroStats.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-2xl border border-border/70 bg-card/70 px-4 py-3 backdrop-blur-sm"
+                  >
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {item.label}
+                    </div>
+                    <div className="mt-2 text-sm font-medium text-foreground">{item.value}</div>
+                  </div>
+                ))}
+              </div>
             </motion.div>
 
             <motion.div
@@ -212,31 +282,72 @@ export default function LandingPage() {
               custom={2}
               className="relative"
             >
-              <Card className="border-white/10 bg-white/[0.06] text-white shadow-2xl shadow-black/30 backdrop-blur-2xl">
-                <CardHeader>
-                  <CardTitle className="text-lg text-white">MVP control plane</CardTitle>
-                <CardDescription className="text-white/[0.65]">
-                    Signed payloads, clean Api calls, and a working dev loop.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {[
-                    { label: "Organization setup", value: "Post /setup", tone: "bg-emerald-500/15 text-emerald-200" },
-                    { label: "Document register", value: "Post /documents", tone: "bg-sky-500/15 text-sky-200" },
-                    { label: "Verify", value: "Post /verify", tone: "bg-violet-500/15 text-violet-200" },
-                    { label: "Telemetry", value: "Post /access-events", tone: "bg-amber-500/15 text-amber-100" },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                    >
-                      <div>
-                        <div className="text-sm font-medium text-white">{item.label}</div>
-                        <div className="text-xs text-white/[0.55]">Ready for local FastApi</div>
-                      </div>
-                      <Badge className={`border-0 ${item.tone}`}>{item.value}</Badge>
+              <Card className="relative overflow-hidden border-border/70 bg-card/80 shadow-2xl shadow-black/15 backdrop-blur-2xl">
+                <div className="absolute inset-0">
+                  <img
+                    src={heroBackdropAsset}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-full w-full object-cover opacity-50 dark:opacity-45"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-br from-background/20 via-background/70 to-background/95" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(88,92,255,0.18),transparent_34%)]" />
+                </div>
+                <CardHeader className="relative space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg text-foreground">Signed document overview</CardTitle>
+                      <CardDescription className="text-muted-foreground">
+                        Signed payloads, clean API calls, and a working dev loop.
+                      </CardDescription>
                     </div>
-                  ))}
+                    <Badge className="border border-success/20 bg-success/10 text-success">Verified</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="relative space-y-4">
+                  <div className="grid gap-3">
+                    {[
+                      { label: "Manifest hash", value: "sha256:9f2c…1a7d" },
+                      { label: "Policy", value: "No external AI, secure link required" },
+                      { label: "Latest event", value: "Issued 8 minutes ago" },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/70 px-4 py-3"
+                      >
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                            {item.label}
+                          </div>
+                          <div className="mt-1 text-sm font-medium text-foreground">{item.value}</div>
+                        </div>
+                        <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      <span>Workflow</span>
+                      <span>3 steps</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {heroSteps.map((step, index) => (
+                        <div key={step.step} className="flex gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/70 bg-card text-[11px] font-semibold text-foreground">
+                            {step.step}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <h3 className="text-sm font-medium text-foreground">{step.title}</h3>
+                              {index === 0 && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">Live</Badge>}
+                            </div>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.body}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
