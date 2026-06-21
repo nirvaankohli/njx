@@ -21,7 +21,9 @@
     "password_hash": "86330cbccf2eb3555d56e4892f662f926c1cd9cfe68abbd22a207071d5be4a50",
     "password_salt": "581581bf29376c4422af625f150019d6"
   },
-  "sessions": {},
+  "sessions": {
+    "e4375fe8b2815d7742aaf994f3804c4ad51ab1ffe5b190a4adf0b5da4f8c6bd0": "nirvaan.kohli@gmail.com"
+  },
   "signed_out": false,
   "users": {
     "nirvaan.kohli@gmail.com": {
