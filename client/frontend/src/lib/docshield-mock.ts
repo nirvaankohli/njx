@@ -1,7 +1,8 @@
 // Local mock data used when no DocShield backend is configured.
 // Lets the UI render meaningfully during pilots / demos.
 import type {
-  AccessEvent,
+  AccessEventFeedItem,
+  AccessEventsFeedResponse,
   DashboardData,
   DocumentManifest,
   SignedHistoryEventPayload,
@@ -81,7 +82,7 @@ export const mockHistory: Record<string, SignedHistoryEventPayload[]> = {
   ],
 };
 
-export const mockAccessEvents: AccessEvent[] = [
+export const mockAccessEvents: AccessEventFeedItem[] = [
   {
     event_id: "ae_01",
     tenant_id: "tenant_acme",
@@ -93,6 +94,10 @@ export const mockAccessEvents: AccessEvent[] = [
     country: "US",
     action: "open",
     result: "allowed",
+    risk_score: 18,
+    risk_reasons: [],
+    severity: "low",
+    suspicious: false,
   },
   {
     event_id: "ae_02",
@@ -105,6 +110,10 @@ export const mockAccessEvents: AccessEvent[] = [
     country: "US",
     action: "download",
     result: "allowed",
+    risk_score: 33,
+    risk_reasons: ["burst_access"],
+    severity: "low",
+    suspicious: false,
   },
   {
     event_id: "ae_03",
@@ -117,6 +126,10 @@ export const mockAccessEvents: AccessEvent[] = [
     country: "DE",
     action: "open",
     result: "allowed",
+    risk_score: 61,
+    risk_reasons: ["new_geography"],
+    severity: "medium",
+    suspicious: true,
   },
   {
     event_id: "ae_04",
@@ -129,8 +142,19 @@ export const mockAccessEvents: AccessEvent[] = [
     country: "RU",
     action: "token_failed",
     result: "failed",
+    risk_score: 88,
+    risk_reasons: ["blocked_attempts", "new_geography"],
+    severity: "high",
+    suspicious: true,
   },
 ];
+
+export const mockAccessEventsFeed: AccessEventsFeedResponse = {
+  tenant_id: "tenant_acme",
+  total_events: mockAccessEvents.length,
+  suspicious_events: mockAccessEvents.filter((event) => event.suspicious).length,
+  events: [...mockAccessEvents].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+};
 
 export const mockDashboard: DashboardData = {
   tenant_id: "tenant_acme",

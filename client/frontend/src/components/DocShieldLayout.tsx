@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileText, ShieldCheck, Activity, Settings2, Download, BookOpen, Building2, LogOut, CreditCard, User } from "lucide-react";
+import { LayoutDashboard, FileText, ShieldCheck, ShieldAlert, Settings2, Download, BookOpen, Building2, LogOut, CreditCard, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { frontendApi, type FrontendCompanySettings } from "@/lib/frontend-api";
@@ -13,7 +13,7 @@ const nav = [
   { to: "/app", end: true, label: "Dashboard", icon: LayoutDashboard },
   { to: "/app/documents", label: "Documents", icon: FileText },
   { to: "/app/verify", label: "Verify", icon: ShieldCheck },
-  { to: "/app/access-events", label: "Access events", icon: Activity },
+  { to: "/app/access-events", label: "Anomaly hub", icon: ShieldAlert },
   { to: "/app/reference", label: "Reference", icon: BookOpen },
   { to: "/app/setup", label: "Organization setup", icon: Settings2 },
 ];

@@ -100,3 +100,39 @@ def test_telemetry_dashboard_and_audit_export(client):
     assert audit["access_events"]
     assert audit["verification_summary"]["last_status"] is None
 
+
+def test_access_events_feed_returns_newest_first_with_risk_metadata(client):
+    _register_document(client)
+    base_time = datetime(2026, 6, 20, 20, 0, tzinfo=timezone.utc)
+    for index in range(10):
+        response = client.post(
+            "/access-events",
+            json={
+                "event_id": f"feed_{index:03d}",
+                "tenant_id": "tenant_acme",
+                "document_id": "doc_telemetry",
+                "link_id": "link_buyerco_001",
+                "timestamp": (base_time + timedelta(minutes=index)).isoformat().replace("+00:00", "Z"),
+                "action": "download" if index else "open",
+                "ip_hash": f"sha256:ip-feed-{index}",
+                "user_agent_hash": f"sha256:ua-feed-{index}",
+                "country": "US" if index < 3 else "CA",
+                "result": "allowed",
+                "reason": None,
+            },
+        )
+        assert response.status_code == 200
+
+    feed_response = client.get("/access-events", params={"tenant_id": "tenant_acme", "limit": 5})
+    assert feed_response.status_code == 200
+    feed = feed_response.json()
+
+    assert feed["tenant_id"] == "tenant_acme"
+    assert feed["total_events"] == 10
+    assert feed["suspicious_events"] >= 1
+    assert [item["event_id"] for item in feed["events"]] == [f"feed_{index:03d}" for index in range(9, 4, -1)]
+    assert feed["events"][0]["timestamp"].startswith("2026-06-20T20:09:00")
+    assert isinstance(feed["events"][0]["risk_score"], int)
+    assert isinstance(feed["events"][0]["risk_reasons"], list)
+    assert isinstance(feed["events"][0]["severity"], str)
+    assert isinstance(feed["events"][0]["suspicious"], bool)

@@ -162,6 +162,31 @@ class AccessEventResponse(BaseModel):
     risk_recomputed: bool
 
 
+class AccessEventFeedItem(BaseModel):
+    event_id: str
+    tenant_id: str
+    document_id: str
+    link_id: str | None = None
+    timestamp: datetime
+    action: Literal["open", "download", "token_failed", "verify_attempt", "ai_upload_blocked"]
+    ip_hash: str | None = None
+    user_agent_hash: str | None = None
+    country: str | None = None
+    result: Literal["allowed", "blocked", "failed"] = "allowed"
+    reason: str | None = None
+    risk_score: int
+    risk_reasons: list[str] = Field(default_factory=list)
+    severity: Literal["low", "medium", "high"]
+    suspicious: bool
+
+
+class AccessEventFeedResponse(BaseModel):
+    tenant_id: str
+    total_events: int
+    suspicious_events: int
+    events: list[AccessEventFeedItem] = Field(default_factory=list)
+
+
 class AlertItem(BaseModel):
     document_id: str
     severity: Literal["low", "medium", "high"]

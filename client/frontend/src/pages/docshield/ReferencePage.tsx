@@ -1,4 +1,4 @@
-import { Code2, Database, Fingerprint, ShieldCheck, Upload, Activity, Download, Settings2 } from "lucide-react";
+import { Code2, Database, Fingerprint, ShieldCheck, Upload, Activity, Download, Settings2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,9 +36,17 @@ const endpoints = [
     icon: Activity,
     method: "POST",
     path: "/access-events",
-    title: "Log telemetry",
+    title: "Ingest telemetry",
     summary: "Stores access events and triggers a risk recompute.",
     details: ["tenant_id", "document_id", "action", "result"],
+  },
+  {
+    icon: ShieldAlert,
+    method: "GET",
+    path: "/access-events",
+    title: "Fetch anomaly feed",
+    summary: "Returns recent scored access events with severity and suspicious flags.",
+    details: ["tenant_id", "limit"],
   },
   {
     icon: Download,
