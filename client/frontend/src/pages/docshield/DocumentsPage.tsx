@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, Bot, Building2, Download, FileText, Link2, Lock, Loader2, ShieldCheck, Upload } from "lucide-react";
+import {
+  BadgeCheck,
+  Bot,
+  Building2,
+  Copy,
+  Download,
+  FileText,
+  Link2,
+  Lock,
+  Loader2,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
 import {
   api,
   type AiTag,
@@ -79,6 +91,10 @@ type SignedDocumentSummary = {
   fingerprint: string;
   createdAt: string;
 };
+
+function describeApiFailure(error: unknown) {
+  return error instanceof Error ? error.message : "Backend unavailable";
+}
 
 export default function DocumentsPage() {
   const session = getDocShieldSession();
@@ -186,26 +202,41 @@ export default function DocumentsPage() {
         signature: await signCanonicalPayload(initialEventBase),
       };
 
-      await api.setup({
-        tenant: {
-          tenant_id: tenantId,
-          org_name: session.tenantName,
-          domains: session.domains,
-          admin_emails: session.adminEmails,
-        },
-        policy_templates: [],
-        public_keys: [{ key_id: issuerKeyId, public_key_b64: identity.publicKeyB64 }],
-      });
-      const response = await api.registerDocument({
-        signed_manifest: signedManifest,
-        initial_history: [initialEvent],
-      });
-      await api.uploadDocumentContent(documentId, selectedFile);
-      const shareLink = await api.createShareLink(documentId, {
-        access_method: accessAnyoneWithLink ? "link" : accessMethod ?? "organization",
-        password_hash: accessPasswordHash,
-        expires_in_hours: 168,
-      });
+      const localHistoryTip = await sha256Hex(canonicalJsonString(initialEvent));
+      let manifestHashToStore = manifestHash;
+      let historyTipToStore = localHistoryTip;
+      let backendSynced = false;
+      let backendErrorMessage: string | null = null;
+      let shareLink = null;
+
+      try {
+        await api.setup({
+          tenant: {
+            tenant_id: tenantId,
+            org_name: session.tenantName,
+            domains: session.domains,
+            admin_emails: session.adminEmails,
+          },
+          policy_templates: [],
+          public_keys: [{ key_id: issuerKeyId, public_key_b64: identity.publicKeyB64 }],
+        });
+        const response = await api.registerDocument({
+          signed_manifest: signedManifest,
+          initial_history: [initialEvent],
+        });
+        await api.uploadDocumentContent(documentId, selectedFile);
+        shareLink = await api.createShareLink(documentId, {
+          access_method: accessAnyoneWithLink ? "link" : accessMethod ?? "organization",
+          password_hash: accessPasswordHash,
+          expires_in_hours: 168,
+        });
+        manifestHashToStore = response.manifest_hash;
+        historyTipToStore = response.history_tip;
+        backendSynced = true;
+      } catch (error) {
+        backendSynced = false;
+        backendErrorMessage = describeApiFailure(error);
+      }
 
       const nextDocument: LocalDocument = {
         document_id: manifest.document_id,
@@ -216,8 +247,8 @@ export default function DocumentsPage() {
         signer_refs: [issuerKeyId],
         created_at: createdAt,
         status: "active",
-        manifestHash: response.manifest_hash,
-        historyTip: response.history_tip,
+        manifestHash: manifestHashToStore,
+        historyTip: historyTipToStore,
         signedManifest,
         initialHistory: [initialEvent],
         sourceFileName: selectedFile.name,
@@ -236,8 +267,8 @@ export default function DocumentsPage() {
         activeDocument: {
           documentId: nextDocument.document_id,
           contentFingerprint: fingerprint,
-          manifestHash: response.manifest_hash,
-          historyTip: response.history_tip,
+          manifestHash: manifestHashToStore,
+          historyTip: historyTipToStore,
           signedManifest,
           history: [initialEvent],
           sourceFileName: selectedFile.name,
@@ -246,11 +277,13 @@ export default function DocumentsPage() {
           accessAnyoneWithLink,
           accessMethod,
           accessPasswordHash,
-          shareLink: {
-            linkId: shareLink.link_id,
-            token: shareLink.token,
-            expiresAt: shareLink.expires_at,
-          },
+          shareLink: shareLink
+            ? {
+                linkId: shareLink.link_id,
+                token: shareLink.token,
+                expiresAt: shareLink.expires_at,
+              }
+            : null,
         },
       });
       setSignedDocument({
@@ -262,9 +295,15 @@ export default function DocumentsPage() {
       setAccessPassword("");
       setAccessPasswordConfirm("");
       setAccessMode("organization");
-      toast.success("Secure document ready", {
-        description: `${selectedFile.name} now has an encrypted passport and secure link.`,
-      });
+      if (backendSynced) {
+        toast.success("Secure document ready", {
+          description: `${selectedFile.name} now has an encrypted passport and secure link.`,
+        });
+      } else {
+        toast.message("Saved locally", {
+          description: `${selectedFile.name} was signed in your browser session.${backendErrorMessage ? ` ${backendErrorMessage}` : ""}`,
+        });
+      }
     } catch (err) {
       toast.error("Document signing failed", {
         description: err instanceof Error ? err.message : "POST /documents not reachable",
@@ -279,6 +318,15 @@ export default function DocumentsPage() {
     setSelectedFile(file);
     setSignedDocument(null);
     e.target.value = "";
+  }
+
+  async function copyDownloadImage() {
+    if (!signedDocument) return;
+    const downloadUrl = `${window.location.origin}/app/documents/${encodeURIComponent(signedDocument.documentId)}/download`;
+    await navigator.clipboard.writeText(downloadUrl);
+    toast.success("Download link copied", {
+      description: "Paste it anywhere to open the signed download page.",
+    });
   }
 
   return (
@@ -434,6 +482,10 @@ export default function DocumentsPage() {
                     <Download className="mr-1.5 h-4 w-4" />
                     Open download page
                   </Link>
+                </Button>
+                <Button variant="outline" onClick={() => void copyDownloadImage()}>
+                  <Copy className="mr-1.5 h-4 w-4" />
+                  Copy download image
                 </Button>
               </div>
             </CardContent>

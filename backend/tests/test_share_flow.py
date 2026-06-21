@@ -93,6 +93,7 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
         "document_id": document_id,
         "opens": 1,
         "downloads": 1,
+        "download_rate_per_hour": 1.0,
         "countries": {"DE": 1, "US": 1},
     }
 

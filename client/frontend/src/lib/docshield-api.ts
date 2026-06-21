@@ -199,6 +199,7 @@ export type ShareAnalytics = {
   document_id: string;
   opens: number;
   downloads: number;
+  download_rate_per_hour: number;
   countries: Record<string, number>;
 };
 

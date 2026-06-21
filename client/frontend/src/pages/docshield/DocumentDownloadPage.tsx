@@ -94,14 +94,6 @@ export default function DocumentDownloadPage() {
 
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="gap-1">
-            <Download className="h-3.5 w-3.5" />
-            Download page
-          </Badge>
-          <Badge variant="outline" className="gap-1">
-            <FileSignature className="h-3.5 w-3.5" />
-            Signed package
-          </Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Download signed document</h1>
         <p className="text-sm text-muted-foreground">
