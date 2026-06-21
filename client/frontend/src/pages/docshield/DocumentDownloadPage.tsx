@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, FileSignature, Lock, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileSignature, Lock, LockKeyhole, Loader2, ShieldCheck } from "lucide-react";
+import { api } from "@/lib/docshield-api";
+import { triggerBrowserDownload } from "@/lib/download";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatFileSize } from "@/lib/docshield-file";
-import { triggerBrowserDownload } from "@/lib/download";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { sha256Hex } from "@/lib/docshield-signing";
 
@@ -19,90 +21,67 @@ export default function DocumentDownloadPage() {
   const accessMethod = active?.accessMethod ?? (anyoneWithLink ? null : "password");
   const passwordRequired = !anyoneWithLink && accessMethod === "password";
   const organizationRequired = !anyoneWithLink && accessMethod === "organization";
-  const organizationAllowed = useMemo(
-    () => !organizationRequired || !active || session.tenantId === active.signedManifest.manifest.tenant_id,
-    [active, organizationRequired, session.tenantId],
-  );
+  const organizationAllowed = !organizationRequired || !active || session.tenantId === active.signedManifest.manifest.tenant_id;
   const [password, setPassword] = useState("");
-  const [unlocked, setUnlocked] = useState(anyoneWithLink || organizationAllowed);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setPassword("");
-    setUnlocked(anyoneWithLink || organizationAllowed);
     setDownloading(false);
     setDownloaded(false);
     setError(null);
-  }, [documentId, anyoneWithLink, organizationAllowed]);
+  }, [documentId, anyoneWithLink, organizationAllowed, active?.shareLink?.token]);
 
-  const packagePayload = useMemo(
-    () =>
-      active
-        ? {
-            source_file: {
-              name: active.sourceFileName ?? `${documentId}.pdf`,
-              type: active.sourceFileType ?? "application/octet-stream",
-              size: active.sourceFileSize ?? 0,
-            },
-            signed_manifest: active.signedManifest,
-            history: active.history,
-            manifest_hash: active.manifestHash,
-            document_id: active.documentId,
-            access_method: accessMethod ?? "anyone_with_link",
-          }
-        : null,
-    [active, documentId, accessMethod],
+  const download = useCallback(
+    async (passwordHash?: string) => {
+      if (!active?.shareLink || downloading) return;
+      setDownloading(true);
+      setError(null);
+      try {
+        const blob = await api.downloadSharedDocument(active.shareLink.token, {
+          passwordHash,
+          tenantId: organizationRequired ? session.tenantId : undefined,
+        });
+        triggerBrowserDownload(blob, active.sourceFileName ?? documentId);
+        setDownloaded(true);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "The secure link could not be opened.");
+      } finally {
+        setDownloading(false);
+      }
+    },
+    [active, documentId, downloading, organizationRequired, session.tenantId],
   );
 
-  const downloadPackage = useCallback(async () => {
-    if (!active || !packagePayload) return;
-    setDownloading(true);
-    setError(null);
-    try {
-      const blob = new Blob([JSON.stringify(packagePayload, null, 2)], { type: "application/json" });
-      triggerBrowserDownload(blob, `${documentId}.docshield.json`);
-      setDownloaded(true);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The download could not be prepared.");
-    } finally {
-      setDownloading(false);
-    }
-  }, [active, documentId, packagePayload]);
-
-  async function unlock() {
-    if (!active) return;
-    if (anyoneWithLink) {
-      setUnlocked(true);
-      return;
-    }
-    if (organizationRequired) {
-      if (!organizationAllowed) {
-        setError("Organization access required");
-        return;
-      }
-      setUnlocked(true);
-      return;
-    }
-
-    const hashed = await sha256Hex(password);
-    if (hashed !== active.accessPasswordHash) {
-      setError("Password incorrect");
-      return;
-    }
-    setUnlocked(true);
-  }
-
   useEffect(() => {
-    if (!active || downloading || downloaded || error) return;
-    if (passwordRequired && !unlocked) return;
+    if (!active?.shareLink || downloaded || error || downloading) return;
+    if (passwordRequired) return;
     if (organizationRequired && !organizationAllowed) {
       setError("Organization access required");
       return;
     }
-    void downloadPackage();
-  }, [active, downloading, downloaded, error, passwordRequired, unlocked, organizationRequired, organizationAllowed, downloadPackage]);
+    void download();
+  }, [active, downloading, downloaded, error, passwordRequired, organizationRequired, organizationAllowed, download]);
+
+  async function unlock() {
+    if (!active || downloading) return;
+    if (organizationRequired && !organizationAllowed) {
+      setError("Organization access required");
+      return;
+    }
+    if (passwordRequired) {
+      const hashed = await sha256Hex(password);
+      if (hashed !== active.accessPasswordHash) {
+        setError("Password incorrect");
+        return;
+      }
+      await download(hashed);
+      return;
+    }
+    await download();
+  }
 
   return (
     <div className="space-y-6">
@@ -118,7 +97,7 @@ export default function DocumentDownloadPage() {
         </p>
       </header>
 
-      {active && packagePayload ? (
+      {active?.shareLink ? (
         downloaded ? (
           <Card>
             <CardHeader>
@@ -127,21 +106,21 @@ export default function DocumentDownloadPage() {
                 Download ready
               </div>
               <CardTitle>Download started</CardTitle>
-              <CardDescription>The browser should save the signed package automatically.</CardDescription>
+              <CardDescription>The browser should save the signed file automatically.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <InfoRow label="Document ID" value={active.documentId} />
-                <InfoRow label="Download name" value={`${documentId}.docshield.json`} />
+                <InfoRow label="Download ID" value={active.documentId} />
+                <InfoRow label="File name" value={active.sourceFileName ?? documentId} />
                 <InfoRow label="Manifest hash" value={active.manifestHash} />
-                <InfoRow label="History events" value={`${active.history.length}`} />
+                <InfoRow label="Size" value={formatFileSize(active.sourceFileSize ?? 0)} />
               </div>
               <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
                 If the download shelf did not open, check your browser's download history.
               </div>
             </CardContent>
           </Card>
-        ) : passwordRequired && !unlocked ? (
+        ) : passwordRequired ? (
           <Card>
             <CardHeader>
               <div className="mb-2 flex w-fit items-center gap-1 rounded-full border border-border bg-muted/20 px-2.5 py-1 text-[11px] font-medium tracking-[0.14em] text-muted-foreground">
@@ -149,11 +128,11 @@ export default function DocumentDownloadPage() {
                 Password required
               </div>
               <CardTitle>Unlock download</CardTitle>
-              <CardDescription>{formatFileSize(active.sourceFileSize ?? 0)} · signed bundle</CardDescription>
+              <CardDescription>{formatFileSize(active.sourceFileSize ?? 0)} · signed file</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <InfoRow label="Document ID" value={active.documentId} />
+                <InfoRow label="Download ID" value={active.documentId} />
                 <InfoRow label="Manifest hash" value={active.manifestHash} />
                 <InfoRow label="History events" value={`${active.history.length}`} />
                 <InfoRow label="Access mode" value="password" />
@@ -179,58 +158,41 @@ export default function DocumentDownloadPage() {
             </CardContent>
           </Card>
         ) : organizationRequired && !organizationAllowed ? (
+          <Alert variant="destructive">
+            <LockKeyhole className="h-4 w-4" />
+            <AlertTitle>Organization access required</AlertTitle>
+            <AlertDescription>
+              Sign in with the organization that owns this link, then try the download again.
+            </AlertDescription>
+          </Alert>
+        ) : error ? (
+          <Alert variant="destructive">
+            <LockKeyhole className="h-4 w-4" />
+            <AlertTitle>Download blocked</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : (
           <Card>
             <CardHeader>
               <div className="mb-2 flex w-fit items-center gap-1 rounded-full border border-border bg-muted/20 px-2.5 py-1 text-[11px] font-medium tracking-[0.14em] text-muted-foreground">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Organization access
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Starting download
               </div>
-              <CardTitle>Sign-in required</CardTitle>
-              <CardDescription>{active.signedManifest.manifest.tenant_id} must match your current organization session.</CardDescription>
-            </CardHeader>
-            <CardContent className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              Sign in to the correct organization, then reload this page to trigger the download.
-            </CardContent>
-          </Card>
-        ) : downloading ? (
-          <Card>
-            <CardHeader>
               <CardTitle>Preparing download</CardTitle>
-              <CardDescription>{formatFileSize(active.sourceFileSize ?? 0)} · signed bundle</CardDescription>
+              <CardDescription>{formatFileSize(active.sourceFileSize ?? 0)} · signed file</CardDescription>
             </CardHeader>
             <CardContent className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               The browser download is being prepared now.
             </CardContent>
           </Card>
-        ) : error ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Download blocked</CardTitle>
-              <CardDescription>{active.documentId}</CardDescription>
-            </CardHeader>
-            <CardContent className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
-              {error}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Starting download</CardTitle>
-              <CardDescription>{formatFileSize(active.sourceFileSize ?? 0)} · signed bundle</CardDescription>
-            </CardHeader>
-            <CardContent className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              Preparing the browser download now.
-            </CardContent>
-          </Card>
         )
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">No signed package in session</CardTitle>
+            <CardTitle className="text-base">No secure file in session</CardTitle>
             <CardDescription>
-              Upload and sign a PDF or DOCX first, then return here to download the generated package.
+              Upload and sign a PDF or DOCX first. Its secure link will be generated automatically.
             </CardDescription>
           </CardHeader>
           <CardContent>

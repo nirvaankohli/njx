@@ -167,3 +167,42 @@ def test_access_events_feed_flags_download_rate_spike(client):
     assert feed["events"][0]["event_id"] == "burst_007"
     assert "download_rate_spike" in feed["events"][0]["risk_reasons"]
     assert feed["events"][0]["suspicious"] is True
+
+
+def test_high_risk_event_does_not_contaminate_learned_baseline(client):
+    _register_document(client)
+    base_time = datetime(2026, 6, 20, 22, 0, tzinfo=timezone.utc)
+    for index in range(3):
+        client.post(
+            "/access-events",
+            json={
+                "event_id": f"baseline_{index}",
+                "tenant_id": "tenant_acme",
+                "document_id": "doc_telemetry",
+                "timestamp": (base_time + timedelta(hours=index)).isoformat(),
+                "action": "open",
+                "ip_hash": "sha256:known-ip",
+                "user_agent_hash": "sha256:known-browser",
+                "country": "US",
+                "result": "allowed",
+            },
+        )
+
+    client.post(
+        "/access-events",
+        json={
+            "event_id": "blocked_attack",
+            "tenant_id": "tenant_acme",
+            "document_id": "doc_telemetry",
+            "timestamp": (base_time + timedelta(hours=3)).isoformat(),
+            "action": "download",
+            "ip_hash": "sha256:new-ip",
+            "user_agent_hash": "sha256:new-browser",
+            "country": "RU",
+            "result": "blocked",
+        },
+    )
+
+    attack = client.get("/access-events", params={"tenant_id": "tenant_acme", "limit": 1}).json()["events"][0]
+    assert attack["risk_score"] >= 50
+    assert "blocked_attempts" in attack["risk_reasons"]

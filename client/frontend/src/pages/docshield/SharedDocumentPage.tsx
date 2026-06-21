@@ -29,7 +29,8 @@ export default function SharedDocumentPage() {
     setDownloaded(false);
     setPassword("");
     setError(null);
-    api.sharedDocument(token)
+    api
+      .sharedDocument(token)
       .then((next) => setDocument(next))
       .catch((reason) => setError(reason instanceof Error ? reason.message : "This secure link is unavailable."))
       .finally(() => setLoading(false));
@@ -40,23 +41,26 @@ export default function SharedDocumentPage() {
     [document, session.tenantId],
   );
 
-  const download = useCallback(async () => {
-    if (!document) return;
-    setDownloading(true);
-    setError(null);
-    try {
-      const credentials: { passwordHash?: string; tenantId?: string } = {};
-      if (document.password_required) credentials.passwordHash = await sha256Hex(password);
-      if (document.access_method === "organization") credentials.tenantId = session.tenantId;
-      const blob = await api.downloadSharedDocument(token, credentials);
-      triggerBrowserDownload(blob, document.file_name);
-      setDownloaded(true);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Access could not be verified.");
-    } finally {
-      setDownloading(false);
-    }
-  }, [document, password, session.tenantId, token]);
+  const download = useCallback(
+    async (passwordHash?: string) => {
+      if (!document || downloading) return;
+      setDownloading(true);
+      setError(null);
+      try {
+        const blob = await api.downloadSharedDocument(token, {
+          passwordHash,
+          tenantId: document.access_method === "organization" ? session.tenantId : undefined,
+        });
+        triggerBrowserDownload(blob, document.file_name);
+        setDownloaded(true);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Access could not be verified.");
+      } finally {
+        setDownloading(false);
+      }
+    },
+    [document, downloading, session.tenantId, token],
+  );
 
   useEffect(() => {
     if (!document || loading || downloading || downloaded || error) return;
@@ -67,6 +71,20 @@ export default function SharedDocumentPage() {
     }
     void download();
   }, [document, loading, downloading, downloaded, error, organizationAllowed, download]);
+
+  async function unlock() {
+    if (!document || downloading) return;
+    if (document.password_required) {
+      const hashed = await sha256Hex(password);
+      await download(hashed);
+      return;
+    }
+    if (!organizationAllowed) {
+      setError("Organization access required");
+      return;
+    }
+    await download();
+  }
 
   return (
     <main className="min-h-screen bg-background px-4 py-12 text-foreground">
@@ -134,7 +152,7 @@ export default function SharedDocumentPage() {
                 />
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
-              <Button onClick={() => void download()} disabled={downloading || !password}>
+              <Button onClick={() => void unlock()} disabled={downloading || !password}>
                 {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                 {downloading ? "Unlocking…" : "Unlock and download"}
               </Button>
@@ -148,16 +166,22 @@ export default function SharedDocumentPage() {
               Sign in with the organization that owns this link, then try the download again.
             </AlertDescription>
           </Alert>
+        ) : error ? (
+          <Alert variant="destructive">
+            <LockKeyhole className="h-4 w-4" />
+            <AlertTitle>Download blocked</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         ) : (
           <Card>
             <CardHeader>
               <BadgeRow />
-              <CardTitle>Starting download</CardTitle>
+              <CardTitle>Preparing download</CardTitle>
               <CardDescription>{formatFileSize(document.size_bytes)} · signed by {document.issuer_key_id}</CardDescription>
             </CardHeader>
             <CardContent className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              Preparing the browser download now.
+              The browser download is being prepared now.
             </CardContent>
           </Card>
         )}
