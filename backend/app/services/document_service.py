@@ -2,14 +2,133 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.db import DocumentORM, PublicKeyORM, SignatureHistoryEventORM, TenantORM
-from app.models.dto import DocumentRegistrationRequest, DocumentRegistrationResponse, EventAppendResponse, SignatureHistoryEvent
+from app.models.db import (
+    AccessEventORM,
+    AnomalyModelStateORM,
+    DocumentContentORM,
+    DocumentORM,
+    PublicKeyORM,
+    ShareLinkORM,
+    SignatureHistoryEventORM,
+    TenantORM,
+    VerificationLogORM,
+)
+from app.models.dto import (
+    DocumentDetail,
+    DocumentRegistrationRequest,
+    DocumentRegistrationResponse,
+    DocumentSummary,
+    EventAppendResponse,
+    SignatureHistoryEvent,
+)
 from app.services.audit_service import log_action
 from app.services.errors import ConflictError, NotFoundError
 from app.services.signing_service import HistoryChainResult, event_hash, get_public_key, manifest_hash, verify_event_signature, verify_manifest_signature
+
+
+def _document_summary(session: Session, document: DocumentORM) -> DocumentSummary:
+    content = session.get(DocumentContentORM, document.document_id)
+    latest_link = session.scalar(
+        select(ShareLinkORM)
+        .where(ShareLinkORM.document_id == document.document_id, ShareLinkORM.status == "active")
+        .order_by(ShareLinkORM.created_at.desc())
+        .limit(1)
+    )
+    event_count = session.scalar(
+        select(func.count()).select_from(SignatureHistoryEventORM).where(SignatureHistoryEventORM.document_id == document.document_id)
+    )
+    return DocumentSummary(
+        document_id=document.document_id,
+        tenant_id=document.tenant_id,
+        issuer_key_id=document.issuer_key_id,
+        content_fingerprint=document.content_fingerprint,
+        policy=document.policy,
+        embedded_ai_tags=document.embedded_ai_tags,
+        created_at=document.created_at,
+        status=document.status,
+        file_name=content.file_name if content else None,
+        content_type=content.content_type if content else None,
+        size_bytes=content.size_bytes if content else None,
+        access_method=latest_link.access_method if latest_link else None,
+        event_count=event_count or 0,
+    )
+
+
+def list_documents(
+    session: Session,
+    tenant_id: str,
+    *,
+    status: str | None = None,
+    query: str | None = None,
+) -> list[DocumentSummary]:
+    statement = select(DocumentORM).where(DocumentORM.tenant_id == tenant_id)
+    if status:
+        statement = statement.where(DocumentORM.status == status)
+    if query:
+        pattern = f"%{query.strip()}%"
+        statement = statement.outerjoin(DocumentContentORM).where(
+            or_(DocumentORM.document_id.ilike(pattern), DocumentContentORM.file_name.ilike(pattern))
+        )
+    documents = session.scalars(statement.order_by(DocumentORM.created_at.desc())).all()
+    return [_document_summary(session, document) for document in documents]
+
+
+def get_document(session: Session, document_id: str, tenant_id: str) -> DocumentDetail:
+    document = session.get(DocumentORM, document_id)
+    if document is None or document.tenant_id != tenant_id:
+        raise NotFoundError(f"Document {document_id} not found")
+    return DocumentDetail(
+        **_document_summary(session, document).model_dump(),
+        manifest=document.manifest,
+        manifest_hash=document.manifest_hash,
+        history_tip=document.history_tip,
+        history=[
+            SignatureHistoryEvent(
+                event_id=event.event_id,
+                document_id=event.document_id,
+                event=event.event,
+                actor_org=event.actor_org,
+                actor_key_id=event.actor_key_id,
+                timestamp=event.timestamp,
+                previous_event_hash=event.previous_event_hash,
+                manifest_hash=event.manifest_hash,
+                payload=event.payload,
+                signature=event.signature,
+            )
+            for event in document.events
+        ],
+        last_verified_status=document.last_verified_status,
+        last_verified_at=document.last_verified_at,
+    )
+
+
+def delete_document(session: Session, document_id: str, tenant_id: str) -> None:
+    document = session.get(DocumentORM, document_id)
+    if document is None or document.tenant_id != tenant_id:
+        raise NotFoundError(f"Document {document_id} not found")
+
+    content = session.get(DocumentContentORM, document_id)
+    log_action(
+        session,
+        action="document_deleted",
+        tenant_id=tenant_id,
+        document_id=document_id,
+        details={"file_name": content.file_name if content else None},
+    )
+    for model in (
+        VerificationLogORM,
+        AnomalyModelStateORM,
+        AccessEventORM,
+        SignatureHistoryEventORM,
+        ShareLinkORM,
+        DocumentContentORM,
+    ):
+        session.execute(delete(model).where(model.document_id == document_id))
+    session.delete(document)
+    session.commit()
 
 
 def _validate_event_common(
