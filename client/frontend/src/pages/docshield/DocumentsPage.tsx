@@ -249,205 +249,179 @@ export default function DocumentsPage() {
         </p>
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
-          <Card className="overflow-hidden">
+      <div className="space-y-6">
+        <Card className="w-full overflow-hidden">
+          <CardHeader>
+            <CardTitle className="text-base">Upload</CardTitle>
+            <CardDescription>Drop a file or choose one from your device.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <label
+              htmlFor="doc-upload"
+              className="flex min-h-44 w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
+            >
+              <Upload className="h-10 w-10 text-primary" />
+              <div className="mt-4 max-w-md space-y-2">
+                <div className="text-lg font-medium">Upload a file to be encrypted or signed</div>
+                <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
+              </div>
+            </label>
+            <Input
+              id="doc-upload"
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={busy}
+            />
+
+            {selectedFile && (
+              <div className="rounded-2xl border border-border bg-background/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
+                    <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="gap-1">
+                    <FileText className="h-3.5 w-3.5" />
+                    Ready
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {selectedFile && (
+          <Card>
             <CardHeader>
-              <CardTitle className="text-base">Upload</CardTitle>
-              <CardDescription>Drop a file or choose one from your device.</CardDescription>
+              <CardTitle className="text-base">Access rules</CardTitle>
+              <CardDescription>Pick how this file should be shared.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              <label
-                htmlFor="doc-upload"
-                className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
-              >
-                <Upload className="h-10 w-10 text-primary" />
-                <div className="mt-4 max-w-md space-y-2">
-                  <div className="text-lg font-medium">Upload a file to be encrypted or signed</div>
-                  <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
-                </div>
-              </label>
-              <Input
-                id="doc-upload"
-                type="file"
-                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={busy}
-              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
+                <PolicyRow label="Private URL required" value={secureLink} onChange={setSecureLink} />
+                <PolicyRow label="Block forwarding" value={blockForward} onChange={setBlockForward} />
+                <PolicyRow label="Block public sharing" value={blockPublic} onChange={setBlockPublic} />
+                <PolicyRow label="Password required" value={passwordRequired} onChange={setPasswordRequired} />
+              </div>
 
-              {selectedFile && (
-                <div className="rounded-2xl border border-border bg-background/70 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
-                      <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="gap-1">
-                      <FileText className="h-3.5 w-3.5" />
-                      Ready
-                    </Badge>
+              {passwordRequired && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Access password</Label>
+                    <Input
+                      type="password"
+                      value={accessPassword}
+                      onChange={(e) => setAccessPassword(e.target.value)}
+                      placeholder="Create a password for the download page"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Confirm password</Label>
+                    <Input
+                      type="password"
+                      value={accessPasswordConfirm}
+                      onChange={(e) => setAccessPasswordConfirm(e.target.value)}
+                      placeholder="Repeat the password"
+                    />
                   </div>
                 </div>
               )}
+
+              <div>
+                <div className="mb-3 text-sm font-medium">Embedded AI tags</div>
+                <div className="flex flex-wrap gap-3">
+                  {ALL_TAGS.map((tag) => (
+                    <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                      <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
+                      <span className="font-mono text-xs">{tag}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Configure the access controls, then sign the file.</p>
+                <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
+                  {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  Sign file
+                </Button>
+              </div>
             </CardContent>
           </Card>
+        )}
 
-          {selectedFile && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Access rules</CardTitle>
-                <CardDescription>Pick how this file should be shared.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
-                  <PolicyRow label="Private URL required" value={secureLink} onChange={setSecureLink} />
-                  <PolicyRow label="Block forwarding" value={blockForward} onChange={setBlockForward} />
-                  <PolicyRow label="Block public sharing" value={blockPublic} onChange={setBlockPublic} />
-                  <PolicyRow label="Password required" value={passwordRequired} onChange={setPasswordRequired} />
+        {signedDocument && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Signed file ready</CardTitle>
+              <CardDescription>{signedDocument.fileName} is ready for the private download page.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SignedField label="Document ID" value={signedDocument.documentId} mono />
+                <SignedField label="Fingerprint" value={signedDocument.fingerprint} mono />
+                <SignedField label="Signed at" value={signedDocument.createdAt} mono />
+                <SignedField label="File name" value={signedDocument.fileName} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to={`/app/documents/${encodeURIComponent(signedDocument.documentId)}/download`}>
+                    <Download className="mr-1.5 h-4 w-4" />
+                    Open download page
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Documents Uploaded</CardTitle>
+            <CardDescription>Your signed files stay in this session.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {docs.map((doc) => (
+              <Link
+                key={doc.document_id}
+                to={`/app/documents/${encodeURIComponent(doc.document_id)}`}
+                className="block rounded-xl border border-border bg-background/60 p-4 transition-colors hover:border-primary/40 hover:bg-secondary/30"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <div className="truncate font-medium">{doc.document_id}</div>
+                    </div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                      {doc.sourceFileName ? `${doc.sourceFileName} · ` : ""}
+                      {doc.content_fingerprint}
+                    </div>
+                  </div>
+                  <Badge variant={doc.status === "revoked" ? "destructive" : "secondary"}>{doc.status ?? "active"}</Badge>
                 </div>
-
-                {passwordRequired && (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Access password</Label>
-                      <Input
-                        type="password"
-                        value={accessPassword}
-                        onChange={(e) => setAccessPassword(e.target.value)}
-                        placeholder="Create a password for the download page"
-                      />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Confirm password</Label>
-                      <Input
-                        type="password"
-                        value={accessPasswordConfirm}
-                        onChange={(e) => setAccessPasswordConfirm(e.target.value)}
-                        placeholder="Repeat the password"
-                      />
-                    </div>
+                {doc.sourceFileType && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    {doc.sourceFileType} {doc.sourceFileSize ? `· ${formatFileSize(doc.sourceFileSize)}` : ""}
                   </div>
                 )}
-
-                <div>
-                  <div className="mb-3 text-sm font-medium">Embedded AI tags</div>
-                  <div className="flex flex-wrap gap-3">
-                    {ALL_TAGS.map((tag) => (
-                      <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
-                        <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
-                        <span className="font-mono text-xs">{tag}</span>
-                      </label>
-                    ))}
-                  </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {doc.embedded_ai_tags.slice(0, 3).map((tag) => (
+                    <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                      {tag}
+                    </Badge>
+                  ))}
                 </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">Configure the access controls, then sign the file.</p>
-                  <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
-                    {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                    Sign file
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {signedDocument && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Signed file ready</CardTitle>
-                <CardDescription>{signedDocument.fileName} is ready for the private download page.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <SignedField label="Document ID" value={signedDocument.documentId} mono />
-                  <SignedField label="Fingerprint" value={signedDocument.fingerprint} mono />
-                  <SignedField label="Signed at" value={signedDocument.createdAt} mono />
-                  <SignedField label="File name" value={signedDocument.fileName} />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button asChild>
-                    <Link to={`/app/documents/${encodeURIComponent(signedDocument.documentId)}/download`}>
-                      <Download className="mr-1.5 h-4 w-4" />
-                      Open download page
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Upload history</CardTitle>
-              <CardDescription>Recent signed files in this browser session.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {docs.slice(0, 4).map((doc) => (
-                <div key={doc.document_id} className="rounded-2xl border border-border bg-background/60 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{doc.sourceFileName ?? doc.document_id}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {doc.document_id} · {doc.created_at ? new Date(doc.created_at).toLocaleString() : "Just now"}
-                      </div>
-                    </div>
-                    <Badge variant={doc.status === "revoked" ? "destructive" : "secondary"}>{doc.status ?? "active"}</Badge>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Uploaded documents</CardTitle>
-              <CardDescription>Your signed files stay in this session.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {docs.map((doc) => (
-                <Link
-                  key={doc.document_id}
-                  to={`/app/documents/${encodeURIComponent(doc.document_id)}`}
-                  className="block rounded-xl border border-border bg-background/60 p-4 transition-colors hover:border-primary/40 hover:bg-secondary/30"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <div className="truncate font-medium">{doc.document_id}</div>
-                      </div>
-                      <div className="mt-1 truncate text-xs text-muted-foreground">
-                        {doc.sourceFileName ? `${doc.sourceFileName} · ` : ""}
-                        {doc.content_fingerprint}
-                      </div>
-                    </div>
-                    <Badge variant={doc.status === "revoked" ? "destructive" : "secondary"}>{doc.status ?? "active"}</Badge>
-                  </div>
-                  {doc.sourceFileType && (
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      {doc.sourceFileType} {doc.sourceFileSize ? `· ${formatFileSize(doc.sourceFileSize)}` : ""}
-                    </div>
-                  )}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {doc.embedded_ai_tags.slice(0, 3).map((tag) => (
-                      <Badge key={tag} variant="outline" className="font-mono text-[10px]">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
