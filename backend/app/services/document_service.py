@@ -58,6 +58,12 @@ def _document_summary(session: Session, document: DocumentORM) -> DocumentSummar
     )
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def list_documents(
     session: Session,
     tenant_id: str,
@@ -160,6 +166,32 @@ def _validate_event_common(
     return HistoryChainResult(valid=True, reasons=[]), signed_hash, key
 
 
+def validate_history_chain(
+    session: Session,
+    *,
+    document_id: str,
+    expected_manifest_hash: str,
+    history: list[SignatureHistoryEvent],
+) -> str:
+    if not history:
+        raise ConflictError("initial_history must include at least one signed event")
+
+    previous_hash: str | None = None
+    history_tip: str | None = None
+    for event in history:
+        _, signed_hash, _ = _validate_event_common(
+            session,
+            document_id=document_id,
+            event=event,
+            expected_manifest_hash=expected_manifest_hash,
+            expected_previous_event_hash=previous_hash,
+        )
+        history_tip = signed_hash
+        previous_hash = signed_hash
+    assert history_tip is not None
+    return history_tip
+
+
 def validate_and_store_history(
     session: Session,
     *,
@@ -184,8 +216,6 @@ def validate_and_store_history(
             expected_manifest_hash=expected_manifest_hash,
             expected_previous_event_hash=previous_hash,
         )
-        history_tip = signed_hash
-        previous_hash = signed_hash
         session.add(
             SignatureHistoryEventORM(
                 event_id=event.event_id,
@@ -201,8 +231,36 @@ def validate_and_store_history(
                 event_hash=signed_hash,
             )
         )
+        history_tip = signed_hash
     assert history_tip is not None
     return history_tip
+
+
+def _history_matches_registration(session: Session, document_id: str, history: list[SignatureHistoryEvent]) -> bool:
+    stored_history = session.scalars(
+        select(SignatureHistoryEventORM)
+        .where(SignatureHistoryEventORM.document_id == document_id)
+        .order_by(SignatureHistoryEventORM.timestamp, SignatureHistoryEventORM.created_at)
+    ).all()
+    if len(stored_history) != len(history):
+        return False
+
+    for stored_event, incoming_event in zip(stored_history, history, strict=True):
+        stored_model = SignatureHistoryEvent(
+            event_id=stored_event.event_id,
+            document_id=stored_event.document_id,
+            event=stored_event.event,
+            actor_org=stored_event.actor_org,
+            actor_key_id=stored_event.actor_key_id,
+            timestamp=_as_utc(stored_event.timestamp),
+            previous_event_hash=stored_event.previous_event_hash,
+            manifest_hash=stored_event.manifest_hash,
+            payload=stored_event.payload,
+            signature=stored_event.signature,
+        )
+        if stored_model.model_dump(mode="json") != incoming_event.model_dump(mode="json"):
+            return False
+    return True
 
 
 def register_document(session: Session, request: DocumentRegistrationRequest) -> DocumentRegistrationResponse:
@@ -210,9 +268,6 @@ def register_document(session: Session, request: DocumentRegistrationRequest) ->
     tenant = session.get(TenantORM, manifest.tenant_id)
     if tenant is None:
         raise NotFoundError(f"Tenant {manifest.tenant_id} not found")
-    existing = session.get(DocumentORM, manifest.document_id)
-    if existing is not None:
-        raise ConflictError(f"Document {manifest.document_id} already exists")
 
     key = get_public_key(session, manifest.issuer_key_id)
     if key is None:
@@ -224,6 +279,37 @@ def register_document(session: Session, request: DocumentRegistrationRequest) ->
         raise ConflictError("Manifest signature is invalid")
 
     computed_manifest_hash = manifest_hash(manifest)
+    history_tip = validate_history_chain(
+        session,
+        document_id=manifest.document_id,
+        expected_manifest_hash=computed_manifest_hash,
+        history=request.initial_history,
+    )
+
+    existing = session.get(DocumentORM, manifest.document_id)
+    if existing is not None:
+        # Replayed browser submissions can legitimately resend the exact same signed payload.
+        if _history_matches_registration(session, manifest.document_id, request.initial_history):
+            if (
+                existing.tenant_id == manifest.tenant_id
+                and existing.issuer_key_id == manifest.issuer_key_id
+                and existing.manifest_hash == computed_manifest_hash
+                and existing.manifest == manifest.model_dump(mode="json")
+                and existing.manifest_signature == request.signed_manifest.manifest_signature
+                and existing.signature_algorithm == request.signed_manifest.signature_algorithm
+                and existing.content_fingerprint == manifest.content_fingerprint
+                and existing.policy == manifest.policy
+                and existing.embedded_ai_tags == manifest.embedded_ai_tags
+                and existing.history_tip == history_tip
+            ):
+                return DocumentRegistrationResponse(
+                    document_id=manifest.document_id,
+                    manifest_hash=computed_manifest_hash,
+                    status="registered",
+                    history_tip=history_tip,
+                )
+        raise ConflictError(f"Document {manifest.document_id} already exists")
+
     history_tip = validate_and_store_history(
         session,
         document_id=manifest.document_id,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.models.dto import DocumentRegistrationRequest, ManifestClaims, SignatureHistoryEvent
+from app.security.hashes import sha256_hex
 
 from .helpers import manifest_hash_for, make_keypair, signed_event_payload, signed_manifest_payload
 
@@ -94,6 +95,79 @@ def test_register_document_and_append_history_event(client):
     assert append_response.status_code == 200
     assert append_response.json()["accepted"] is True
     assert append_response.json()["document_id"] == "doc_7f92ab31"
+
+
+def test_register_document_is_idempotent_for_the_same_signed_payload(client):
+    public_key_b64, private_key = make_keypair()
+    _setup_tenant(client, public_key_b64)
+
+    content = b"repeatable signed bytes"
+    fingerprint = sha256_hex(content)
+
+    manifest = ManifestClaims(
+        tenant_id="tenant_acme",
+        document_id="doc_repeatable",
+        issuer_key_id="key_acme_primary",
+        content_fingerprint=fingerprint,
+        policy={
+            "external_ai_upload": "blocked",
+            "secure_link_required": True,
+            "forwarding": "blocked",
+            "public_sharing": "blocked",
+        },
+        embedded_ai_tags=["NO_EXTERNAL_AI"],
+        created_at="2026-06-20T18:30:00Z",
+    )
+    signed_manifest = signed_manifest_payload(manifest, private_key)
+    manifest_hash = manifest_hash_for(manifest)
+
+    initial_event = SignatureHistoryEvent(
+        event_id="evt_repeatable_001",
+        document_id="doc_repeatable",
+        event="issued",
+        actor_org="SupplierCo",
+        actor_key_id="key_acme_primary",
+        timestamp="2026-06-20T18:30:00Z",
+        previous_event_hash=None,
+        manifest_hash=manifest_hash,
+        payload={"file_name": "repeatable.pdf"},
+        signature="",
+    )
+    signed_initial_event = signed_event_payload(initial_event, private_key)
+
+    payload = DocumentRegistrationRequest(
+        signed_manifest=signed_manifest,
+        initial_history=[SignatureHistoryEvent(**signed_initial_event)],
+    ).model_dump(mode="json")
+
+    first_registration = client.post("/documents", json=payload)
+    assert first_registration.status_code == 200
+
+    second_registration = client.post("/documents", json=payload)
+    assert second_registration.status_code == 200
+    assert second_registration.json() == first_registration.json()
+
+    upload = client.put(
+        f"/documents/{manifest.document_id}/content",
+        content=content,
+        headers={"X-File-Name": "repeatable.pdf", "Content-Type": "application/pdf"},
+    )
+    assert upload.status_code == 204
+
+    share_link = client.post(
+        f"/documents/{manifest.document_id}/share-links",
+        json={"access_method": "link", "expires_in_hours": 24},
+    )
+    assert share_link.status_code == 200
+
+    downloaded = client.get(f"/shares/{share_link.json()['token']}/download")
+    assert downloaded.status_code == 200
+    assert downloaded.content.startswith(content)
+
+    verified = client.post("/verify/file", content=downloaded.content)
+    assert verified.status_code == 200
+    assert verified.json()["status"] == "valid"
+    assert verified.json()["fingerprint_match"] is True
 
 
 def test_list_get_filter_and_delete_document(client):
