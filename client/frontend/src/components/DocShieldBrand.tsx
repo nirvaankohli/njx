@@ -23,7 +23,7 @@ export function DocShieldBrand({
       <img
         src={logoSrc}
         alt="DocShield"
-        className={cn("block shrink-0 object-contain", logoClassName)}
+        className={cn("block shrink-0", variant === "wordmark" ? "object-cover" : "object-contain", logoClassName)}
       />
       {showTagline && <div className={cn("text-[11px] leading-tight", resolvedTaglineClassName)}>Signed documents, live in dev</div>}
     </div>
