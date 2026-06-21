@@ -11,7 +11,26 @@ const signingMocks = vi.hoisted(() => ({
   sha256Hex: vi.fn(),
 }));
 
+const routerMocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+}));
+
 let clickSpy: ReturnType<typeof vi.spyOn> | null = null;
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    user: null,
+    loading: false,
+  }),
+}));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => routerMocks.navigate,
+  };
+});
 
 vi.mock("@/lib/docshield-session", () => ({
   getDocShieldSession: () => ({
@@ -87,6 +106,38 @@ describe("SharedDocumentPage", () => {
     await waitFor(() => expect(screen.getByText("Download started")).toBeInTheDocument());
     expect(apiMocks.downloadSharedDocument).toHaveBeenCalledWith("token-public", {});
     expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it("sends organization links to auth before downloading", async () => {
+    apiMocks.sharedDocument.mockResolvedValueOnce({
+      link_id: "lnk_org",
+      document_id: "doc_org_123",
+      tenant_id: "tenant_acme",
+      file_name: "agreement.pdf",
+      content_type: "application/pdf",
+      size_bytes: 4096,
+      content_fingerprint: "sha256:feedface",
+      issuer_key_id: "key_acme_primary",
+      access_method: "organization",
+      password_required: false,
+      expires_at: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/s/token-org"]}>
+        <Routes>
+          <Route path="/s/:token" element={<SharedDocumentPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(routerMocks.navigate).toHaveBeenCalledWith("/auth", {
+        replace: true,
+        state: { from: "/s/token-org" },
+      }),
+    );
+    expect(apiMocks.downloadSharedDocument).not.toHaveBeenCalled();
   });
 
   it("unlocks password-protected links before starting the download", async () => {
