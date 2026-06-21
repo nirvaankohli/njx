@@ -1,39 +1,38 @@
 {
   "company_settings": {
-    "address": "1 Finance Way",
+    "address": null,
     "company_logo_url": null,
-    "company_name": "BediServices",
-    "company_size": "50-200",
-    "company_website": "https://bediservices.com",
-    "created_at": "2026-06-21T05:49:13.846380+00:00",
-    "id": "company-bediservices",
-    "industry": "finance",
+    "company_name": "bedi.rajveer09",
+    "company_size": null,
+    "company_website": null,
+    "created_at": "2026-06-20T22:48:11.603673+00:00",
+    "id": "company-6ba99b97-868c-55aa-a026-c0352e61bf33",
+    "industry": null,
     "phone": null,
-    "updated_at": "2026-06-21T05:49:13.846385+00:00",
-    "user_id": "nirvaan-kohli-user"
+    "updated_at": "2026-06-20T22:48:11.603676+00:00",
+    "user_id": "6ba99b97-868c-55aa-a026-c0352e61bf33"
   },
   "current_user": {
     "avatar_url": null,
-    "email": "nirvaan.kohli@gmail.com",
-    "full_name": "Nirvaan Kohli",
-    "id": "nirvaan-kohli-user",
-    "job_title": "Founder",
-    "password_hash": "86330cbccf2eb3555d56e4892f662f926c1cd9cfe68abbd22a207071d5be4a50",
-    "password_salt": "581581bf29376c4422af625f150019d6"
+    "email": "bedi.rajveer09@gmail.com",
+    "full_name": "bedi.rajveer09",
+    "id": "6ba99b97-868c-55aa-a026-c0352e61bf33",
+    "job_title": "Security Lead"
   },
   "sessions": {
+    "5f154f9e9611bb3f8ac660731bfdc7a8d1039e2998fbfc45a49cf0b1864f13e4": "bedi.rajveer09@gmail.com",
     "e4375fe8b2815d7742aaf994f3804c4ad51ab1ffe5b190a4adf0b5da4f8c6bd0": "nirvaan.kohli@gmail.com"
   },
   "signed_out": false,
   "users": {
-    "nirvaan.kohli@gmail.com": {
+    "bedi.rajveer09@gmail.com": {
       "avatar_url": null,
-      "email": "nirvaan.kohli@gmail.com",
-      "full_name": "Nirvaan Kohli",
-      "id": "nirvaan-kohli-user",
-      "job_title": "Founder",
-      "password_hash": "86330cbccf2eb3555d56e4892f662f926c1cd9cfe68abbd22a207071d5be4a50",
-      "password_salt": "581581bf29376c4422af625f150019d6"
+      "email": "bedi.rajveer09@gmail.com",
+      "full_name": "Rajveer ",
+      "id": "6ba99b97-868c-55aa-a026-c0352e61bf33",
+      "job_title": "Security Lead",
+      "password_hash": "326035f7a7d93f36ec6482a9accbbe784042ab259af057c890d4cb9d118f23a4",
+      "password_salt": "2fd69482cc27b586d7bd5d7fed79defd"
     }
   }
 }
