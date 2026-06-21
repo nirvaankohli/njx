@@ -74,6 +74,10 @@ TAG_POOL = [
     "PHARMA_SOP",
 ]
 
+JUDGE_PDF_SOURCE = ROOT_DIR / "backend" / "tests" / "fixtures" / "invoice-template-us-neat-750px.pdf"
+JUDGE_DOCX_SOURCE = ROOT_DIR / "agents" / "product" / "DocShield_Mature_MVP_PRD (1).docx"
+JUDGE_SLIDE_SOURCE = ROOT_DIR / "agents" / "assets" / "njx" / "njx_slideshow.pdf"
+
 
 @dataclass(slots=True)
 class KeyMaterial:
@@ -87,6 +91,70 @@ class TenantSeedContext:
     tenant: TenantORM
     private_keys: dict[str, Ed25519PrivateKey]
     key_materials: dict[str, KeyMaterial]
+
+
+@dataclass(slots=True)
+class JudgeDocumentSpec:
+    document_id: str
+    file_name: str
+    content_type: str
+    source_path: Path
+    created_at: datetime
+    tags: list[str]
+    policy_template_index: int
+    history_events: int
+    access_events: int
+    verification_logs: int
+    share_links: int
+    suspicious: bool = False
+    verification_suspicious: bool = False
+    force_revoked: bool = False
+
+
+JUDGE_DOCUMENT_SPECS = [
+    JudgeDocumentSpec(
+        document_id="doc_7f92ab31",
+        file_name="clinical-study-report.pdf",
+        content_type="application/pdf",
+        source_path=JUDGE_PDF_SOURCE,
+        created_at=datetime(2026, 6, 18, 14, 21, tzinfo=timezone.utc),
+        tags=["NO_EXTERNAL_AI", "CONFIDENTIAL"],
+        policy_template_index=0,
+        history_events=4,
+        access_events=10,
+        verification_logs=3,
+        share_links=2,
+    ),
+    JudgeDocumentSpec(
+        document_id="doc_3aa11c08",
+        file_name="safety-update.docx",
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        source_path=JUDGE_DOCX_SOURCE,
+        created_at=datetime(2026, 6, 19, 9, 2, tzinfo=timezone.utc),
+        tags=["NO_EXTERNAL_AI", "EXPORT_RESTRICTED"],
+        policy_template_index=1,
+        history_events=5,
+        access_events=12,
+        verification_logs=3,
+        share_links=2,
+        suspicious=True,
+        verification_suspicious=False,
+    ),
+    JudgeDocumentSpec(
+        document_id="doc_b6c4f9a1",
+        file_name="partner-brief.pdf",
+        content_type="application/pdf",
+        source_path=JUDGE_SLIDE_SOURCE,
+        created_at=datetime(2026, 6, 20, 11, 14, tzinfo=timezone.utc),
+        tags=["INTERNAL_ONLY", "PHARMA_SOP"],
+        policy_template_index=2,
+        history_events=4,
+        access_events=6,
+        verification_logs=3,
+        share_links=1,
+        force_revoked=True,
+    ),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -243,6 +311,14 @@ def build_content(rng: Random, base_size: int, label: str) -> bytes:
     return header + body
 
 
+def load_content_bytes(rng: Random, base_size: int, label: str, source_path: Path | None = None) -> bytes:
+    if source_path is None:
+        return build_content(rng, base_size, label)
+    if not source_path.exists():
+        return build_content(rng, base_size, label)
+    return source_path.read_bytes()
+
+
 def build_document_policy(rng: Random, template: PolicyTemplate) -> dict:
     policy = dict(template.policy)
     if rng.random() < 0.3:
@@ -267,6 +343,7 @@ def build_history_chain(
     event_count: int,
     rng: Random,
     primary_key_id: str,
+    force_revoked: bool = False,
 ) -> tuple[list[SignatureHistoryEventORM], str, datetime, bool]:
     event_types = ["issued", "sent", "received", "confirmed_received", "approved", "reissued"]
     active_keys = list(tenant.private_keys.keys())
@@ -281,7 +358,7 @@ def build_history_chain(
             event_type = "issued"
             actor_org = tenant.tenant.org_name
             actor_key_id = primary_key_id
-        elif index == event_count - 1 and rng.random() < 0.18:
+        elif index == event_count - 1 and (force_revoked or rng.random() < 0.18):
             event_type = "revoked"
             actor_org = f"{tenant.tenant.org_name} Compliance"
             actor_key_id = primary_key_id.replace("primary", "review")
@@ -482,20 +559,24 @@ def create_document_rows(
     policy_templates = [template for template in build_policy_templates(prefix, tenant_index)]
     primary_key_id = "key_acme_primary" if judge else f"{tenant.tenant.tenant_id}_key_primary"
     for doc_index in range(document_count):
+        judge_spec = JUDGE_DOCUMENT_SPECS[doc_index] if judge and doc_index < len(JUDGE_DOCUMENT_SPECS) else None
         file_name, content_type = FILE_TYPES[doc_index % len(FILE_TYPES)]
         document_suffix = f"{tenant_index:02d}_{doc_index:04d}"
-        if judge and doc_index < 2:
-            document_id = "doc_7f92ab31" if doc_index == 0 else "doc_3aa11c08"
+        if judge_spec is not None:
+            document_id = judge_spec.document_id
+            file_name = judge_spec.file_name
+            content_type = judge_spec.content_type
+            created_at = judge_spec.created_at
         else:
             document_id = f"{prefix}_{run_id}_doc_{document_suffix}"
-        file_name = f"{slugify(document_id)}-{file_name}"
-        created_at = datetime.now(timezone.utc) - timedelta(days=rng.randint(0, 120), hours=rng.randint(0, 23))
-        content = build_content(rng, content_base_bytes, document_id)
+            file_name = f"{slugify(document_id)}-{file_name}"
+            created_at = datetime.now(timezone.utc) - timedelta(days=rng.randint(0, 120), hours=rng.randint(0, 23))
+        content = load_content_bytes(rng, content_base_bytes, document_id, judge_spec.source_path if judge_spec else None)
         content_fingerprint = sha256_hex(content)
-        template = rng.choice(policy_templates)
+        template = policy_templates[judge_spec.policy_template_index] if judge_spec else rng.choice(policy_templates)
         policy = build_document_policy(rng, template)
-        tags = [rng.choice(TAG_POOL)]
-        if rng.random() < 0.5:
+        tags = list(judge_spec.tags) if judge_spec else [rng.choice(TAG_POOL)]
+        if judge_spec is None and rng.random() < 0.5:
             tags.append(rng.choice([tag for tag in TAG_POOL if tag not in tags]))
         manifest = ManifestClaims(
             tenant_id=tenant.tenant.tenant_id,
@@ -519,9 +600,10 @@ def create_document_rows(
             document_id=document_id,
             manifest_hash=manifest_hash,
             created_at=created_at,
-            event_count=history_events_per_document,
+            event_count=judge_spec.history_events if judge_spec else history_events_per_document,
             rng=rng,
             primary_key_id=primary_key_id,
+            force_revoked=judge_spec.force_revoked if judge_spec else False,
         )
 
         document = DocumentORM(
@@ -562,7 +644,8 @@ def create_document_rows(
 
         link_rows: list[ShareLinkORM] = []
         primary_link_id: str | None = None
-        for link_index in range(share_links_per_document):
+        link_count = judge_spec.share_links if judge_spec else share_links_per_document
+        for link_index in range(link_count):
             link_id = f"lnk_{run_id}_{tenant_index:02d}_{doc_index:04d}_{link_index:02d}"
             token = f"{tenant.tenant.tenant_id}:{document_id}:{link_index}:{rng.random():.12f}"
             access_method = rng.choice(["link", "password", "organization"])
@@ -584,23 +667,23 @@ def create_document_rows(
             if primary_link_id is None:
                 primary_link_id = link_id
 
-        suspicious = tenant_index == 0 and doc_index == 0
+        suspicious = judge_spec.suspicious if judge_spec is not None else tenant_index == 0 and doc_index == 0
         access_rows, latest_score, latest_reasons, latest_vector = build_access_events(
             rng=rng,
             tenant_id=tenant.tenant.tenant_id,
             document_id=document_id,
             share_link_id=primary_link_id,
             base_time=created_at + timedelta(hours=2),
-            count=access_events_per_document,
+            count=judge_spec.access_events if judge_spec else access_events_per_document,
             suspicious=suspicious,
         )
 
         verification_rows, last_status, last_verified_at, verification_reasons = build_verification_logs(
             document_id=document_id,
             latest_timestamp=max(row.timestamp for row in access_rows) if access_rows else created_at,
-            count=verification_logs_per_document,
+            count=judge_spec.verification_logs if judge_spec else verification_logs_per_document,
             revoked=revoked,
-            suspicious=suspicious,
+            suspicious=judge_spec.verification_suspicious if judge_spec else suspicious,
         )
 
         anomaly_state = AnomalyModelStateORM(
@@ -699,6 +782,11 @@ def main() -> int:
     if args.judge:
         args.tenants = 1
         args.prefix = "tenant_acme"
+        args.documents_per_tenant = len(JUDGE_DOCUMENT_SPECS)
+        args.history_events_per_document = 4
+        args.access_events_per_document = 8
+        args.verification_logs_per_document = 3
+        args.share_links_per_document = 2
 
     ensure_tables(args.reset)
     session = SessionLocal()
@@ -708,6 +796,8 @@ def main() -> int:
             remove_existing_seed_rows(session)
             reset_blob_storage()
             reset_frontend_state()
+        if args.judge:
+            print("seeding judge demo with a curated BediServices story: valid docs, suspicious access, and a revoked report")
 
         for tenant_index in range(args.tenants):
             tenant_ctx = create_tenant_context(

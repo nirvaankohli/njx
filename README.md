@@ -36,6 +36,14 @@ npm run seed:judge
 
 Then sign in at `/auth` with `nirvaan.kohli@gmail.com` and `test123`.
 
+That preset now seeds a short, judge-friendly story:
+
+- a clean clinical study report you can open and verify successfully
+- a partner brief with a suspicious access burst so the dashboard lights up
+- a revoked safety update so the document passport shows the failure path
+
+For a quick demo, open **Dashboard**, **Documents**, **Access Events**, and **Verify** in that order.
+
 ## Verify a document
 
 1. Complete organization setup so DocShield registers your Ed25519 public key.
