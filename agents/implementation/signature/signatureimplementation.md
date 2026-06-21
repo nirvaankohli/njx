@@ -67,8 +67,7 @@ Each history event should be chained with `previous_event_hash` so lifecycle act
     "public_sharing": "blocked"
   },
   "embedded_ai_tags": [
-    "NO_EXTERNAL_AI",
-    "SECURE_LINK_ONLY"
+    "NO_EXTERNAL_AI"
   ],
   "history": [
     {

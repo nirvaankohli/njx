@@ -11,10 +11,7 @@ export type PolicyTemplate = {
 };
 
 export type AiTag =
-  | "NO_EXTERNAL_AI"
-  | "SECURE_LINK_ONLY"
-  | "NO_FORWARDING"
-  | "PUBLIC_SHARING_BLOCKED";
+  | "NO_EXTERNAL_AI";
 
 export type DocumentManifest = {
   document_id: string;

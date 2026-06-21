@@ -42,7 +42,7 @@ def _register_document(client, content_fingerprint: str = "sha256:verified"):
             "forwarding": "blocked",
             "public_sharing": "blocked",
         },
-        embedded_ai_tags=["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
+        embedded_ai_tags=["NO_EXTERNAL_AI"],
         created_at="2026-06-20T18:30:00Z",
     )
     manifest_hash = manifest_hash_for(manifest)
@@ -174,7 +174,7 @@ def test_verify_signed_manifest_for_pdf_fixture(client):
             "forwarding": "blocked",
             "public_sharing": "blocked",
         },
-        embedded_ai_tags=["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
+        embedded_ai_tags=["NO_EXTERNAL_AI"],
         created_at="2026-06-20T18:30:00Z",
     )
     manifest_hash = manifest_hash_for(manifest)

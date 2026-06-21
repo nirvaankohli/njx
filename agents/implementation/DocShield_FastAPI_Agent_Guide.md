@@ -392,10 +392,9 @@ The customer-local SDK signs `ManifestClaims`.
     "forwarding": "blocked",
     "public_sharing": "blocked"
   },
-  "embedded_ai_tags": [
-    "NO_EXTERNAL_AI",
-    "SECURE_LINK_ONLY"
-  ],
+      "embedded_ai_tags": [
+        "NO_EXTERNAL_AI"
+      ],
   "created_at": "2026-06-20T18:30:00Z"
 }
 ```
@@ -546,7 +545,7 @@ This endpoint does **not** receive the PDF.
         "forwarding": "blocked",
         "public_sharing": "blocked"
       },
-      "embedded_ai_tags": ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
+      "embedded_ai_tags": ["NO_EXTERNAL_AI"],
       "created_at": "2026-06-20T18:30:00Z"
     },
     "manifest_signature": "ed25519:<base64-signature>",
@@ -684,7 +683,7 @@ The verifier does local work first:
         "forwarding": "blocked",
         "public_sharing": "blocked"
       },
-      "embedded_ai_tags": ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
+  "embedded_ai_tags": ["NO_EXTERNAL_AI"],
       "created_at": "2026-06-20T18:30:00Z"
     },
     "manifest_signature": "ed25519:<base64-signature>",

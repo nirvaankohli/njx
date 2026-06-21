@@ -35,7 +35,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const ALL_TAGS: AiTag[] = ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY", "NO_FORWARDING", "PUBLIC_SHARING_BLOCKED"];
+const ALL_TAGS: AiTag[] = ["NO_EXTERNAL_AI"];
 type AccessMode = "organization" | "anyone_with_link" | "password";
 
 const ACCESS_MODES: Array<{
@@ -111,7 +111,7 @@ export default function DocumentsPage() {
   const [accessMode, setAccessMode] = useState<AccessMode>("organization");
   const [accessPassword, setAccessPassword] = useState("");
   const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
-  const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"]);
+  const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI"]);
 
   function toggleTag(tag: AiTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]));

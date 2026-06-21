@@ -19,7 +19,7 @@ export const mockDocuments: DocumentManifest[] = [
       forwarding: "blocked",
       public_sharing: "blocked",
     },
-    embedded_ai_tags: ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
+    embedded_ai_tags: ["NO_EXTERNAL_AI"],
     signer_refs: ["key_supplierco_01"],
     created_at: "2026-06-18T14:21:00Z",
     status: "active",
