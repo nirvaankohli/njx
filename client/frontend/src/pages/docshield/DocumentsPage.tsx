@@ -304,7 +304,7 @@ export default function DocumentsPage() {
                   <Label>Uploaded by</Label>
                   <Input value={actorOrg} onChange={(e) => setActorOrg(e.target.value)} required />
                 </div>
-              </div>
+              </label>
 
               {selectedFile && (
                 <div className="group rounded-xl border border-border bg-background/70 p-4">
