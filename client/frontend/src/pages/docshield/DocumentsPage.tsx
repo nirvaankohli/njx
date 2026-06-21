@@ -81,6 +81,8 @@ export default function DocumentsPage() {
     })),
   );
   const [busy, setBusy] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [signedDocument, setSignedDocument] = useState<SignedDocumentSummary | null>(null);
 
   const [docId, setDocId] = useState(session.activeDocument?.documentId ?? "");
   const [tenantId, setTenantId] = useState(session.tenantId);
@@ -95,6 +97,7 @@ export default function DocumentsPage() {
   const [accessPassword, setAccessPassword] = useState("");
   const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
   const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"]);
+  const privateAccessEnabled = !anyoneWithLink;
 
   function toggleTag(tag: AiTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]));
@@ -112,8 +115,7 @@ export default function DocumentsPage() {
     setFingerprint(await sha256Hex(await file.arrayBuffer()));
   }
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function signDocument() {
     setBusy(true);
 
     try {
@@ -238,6 +240,14 @@ export default function DocumentsPage() {
     e.target.value = "";
   }
 
+  function handleAnyoneWithLinkChange(enabled: boolean) {
+    setAnyoneWithLink(enabled);
+    if (enabled) {
+      setAccessPassword("");
+      setAccessPasswordConfirm("");
+    }
+  }
+
   function clearSelectedFile() {
     setSelectedFile(null);
     setSignedDocument(null);
@@ -289,12 +299,12 @@ export default function DocumentsPage() {
                   <Input
                     id="document-file"
                     type="file"
-                    onChange={(event) => void selectDocument(event.target.files?.[0] ?? null)}
+                    onChange={handleFileChange}
                     required
                   />
-                  {documentFile && (
+                  {selectedFile && (
                     <p className="break-all font-mono text-xs text-muted-foreground">
-                      {documentFile.name} · {fingerprint || "Calculating SHA-256…"}
+                      {selectedFile.name}
                     </p>
                   )}
                 </div>
