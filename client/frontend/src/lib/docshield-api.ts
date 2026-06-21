@@ -163,6 +163,34 @@ export type AccessEventResponse = {
   risk_recomputed: boolean;
 };
 
+export type ShareLinkResponse = {
+  link_id: string;
+  document_id: string;
+  token: string;
+  access_method: "link" | "password" | "organization";
+  expires_at: string | null;
+};
+
+export type SharedDocument = {
+  link_id: string;
+  document_id: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  content_fingerprint: string;
+  issuer_key_id: string;
+  access_method: "link" | "password" | "organization";
+  password_required: boolean;
+  expires_at: string | null;
+};
+
+export type ShareAnalytics = {
+  document_id: string;
+  opens: number;
+  downloads: number;
+  countries: Record<string, number>;
+};
+
 export type DashboardResponse = {
   tenant_id: string;
   documents: number;
@@ -258,6 +286,30 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  uploadDocumentContent: async (documentId: string, file: File) => {
+    const response = await fetch(buildUrl(`/documents/${encodeURIComponent(documentId)}/content`), {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream", "X-File-Name": file.name },
+      body: file,
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText);
+      throw new ApiError(response.status, message || `Request failed: ${response.status}`);
+    }
+  },
+  createShareLink: (
+    documentId: string,
+    payload: { access_method: "link" | "password" | "organization"; password_hash?: string | null; expires_in_hours?: number },
+  ) =>
+    request<ShareLinkResponse>(`/documents/${encodeURIComponent(documentId)}/share-links`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  shareAnalytics: (documentId: string) =>
+    request<ShareAnalytics>(`/documents/${encodeURIComponent(documentId)}/share-analytics`, { method: "GET" }),
+  sharedDocument: (token: string) =>
+    request<SharedDocument>(`/shares/${encodeURIComponent(token)}`, { method: "GET" }),
+  sharedDownloadUrl: (token: string) => buildUrl(`/shares/${encodeURIComponent(token)}/download`),
   addHistory: (documentId: string, event: SignedHistoryEventPayload) =>
     request<HistoryAppendResponse>(`/documents/${encodeURIComponent(documentId)}/events`, {
       method: "POST",

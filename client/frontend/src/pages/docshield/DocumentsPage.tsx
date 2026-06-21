@@ -149,6 +149,7 @@ export default function DocumentsPage() {
         public_keys: [{ key_id: identity.keyId, public_key_b64: identity.publicKeyB64 }],
       });
       const response = await api.registerDocument({ signed_manifest: signedManifest, initial_history: [issuedEvent] });
+      await api.uploadDocumentContent(documentId, selectedFile);
 
       updateDocShieldSession({
         issuerKeyId: identity.keyId,
@@ -165,6 +166,7 @@ export default function DocumentsPage() {
           accessAnyoneWithLink: anyoneWithLink,
           accessMethod: privateAccessEnabled ? accessMethod : null,
           accessPasswordHash,
+          shareLink: null,
         },
       });
       setSignedDocument({ documentId, fileName: selectedFile.name, fingerprint });

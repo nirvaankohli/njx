@@ -21,6 +21,11 @@ export type DocShieldSession = {
     accessAnyoneWithLink?: boolean;
     accessMethod?: "password" | "organization" | null;
     accessPasswordHash?: string | null;
+    shareLink?: {
+      linkId: string;
+      token: string;
+      expiresAt: string | null;
+    } | null;
   } | null;
 };
 
