@@ -6,7 +6,7 @@ import { triggerBrowserDownload } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getDocShieldSession } from "@/lib/docshield-session";
+import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
 import { sha256Hex } from "@/lib/docshield-signing";
 
 export default function DocumentDownloadPage() {
@@ -14,26 +14,65 @@ export default function DocumentDownloadPage() {
   const { id = "" } = useParams();
   const documentId = decodeURIComponent(id);
   const active = session.activeDocument?.documentId === documentId ? session.activeDocument : null;
+  const [preparedShareLink, setPreparedShareLink] = useState(active?.shareLink ?? null);
   const passwordRequired = active ? !active.accessAnyoneWithLink && active.accessMethod === "password" : false;
   const [password, setPassword] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const shareLink = preparedShareLink ?? active?.shareLink ?? null;
 
   useEffect(() => {
     setPassword("");
     setDownloading(false);
     setDownloaded(false);
     setError(null);
+    setPreparedShareLink(active?.shareLink ?? null);
   }, [documentId, active?.shareLink?.token]);
+
+  useEffect(() => {
+    if (!active || shareLink || downloading || error) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await api.createShareLink(active.documentId, {
+          access_method: active.accessAnyoneWithLink ? "link" : active.accessMethod ?? "organization",
+          password_hash: active.accessPasswordHash,
+          expires_in_hours: 168,
+        });
+        if (cancelled) return;
+        const nextShareLink = {
+          linkId: response.link_id,
+          token: response.token,
+          expiresAt: response.expires_at,
+        };
+        setPreparedShareLink(nextShareLink);
+        updateDocShieldSession({
+          activeDocument: {
+            ...active,
+            shareLink: nextShareLink,
+          },
+        });
+      } catch (reason) {
+        if (!cancelled) {
+          setError(reason instanceof Error ? reason.message : "The secure link could not be prepared.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active, downloading, error, shareLink]);
 
   const download = useCallback(
     async (passwordHash?: string) => {
-      if (!active?.shareLink || downloading) return;
+      if (!shareLink || downloading) return;
       setDownloading(true);
       setError(null);
       try {
-        const blob = await api.downloadSharedDocument(active.shareLink.token, {
+        const blob = await api.downloadSharedDocument(shareLink.token, {
           passwordHash,
           tenantId: active.accessMethod === "organization" ? session.tenantId : undefined,
         });
@@ -45,14 +84,14 @@ export default function DocumentDownloadPage() {
         setDownloading(false);
       }
     },
-    [active, documentId, downloading, session.tenantId],
+    [active, documentId, downloading, session.tenantId, shareLink],
   );
 
   useEffect(() => {
-    if (!active?.shareLink || downloading || downloaded || error) return;
+    if (!shareLink || downloading || downloaded || error) return;
     if (passwordRequired) return;
     void download();
-  }, [active, downloading, downloaded, error, passwordRequired, download]);
+  }, [downloading, downloaded, error, passwordRequired, download, shareLink]);
 
   async function unlock() {
     if (!active || downloading) return;
@@ -74,6 +113,20 @@ export default function DocumentDownloadPage() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <LockKeyhole className="h-4 w-4" />
           No active download is available.
+        </div>
+      </div>
+    );
+  }
+
+  if (!shareLink) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center px-4 text-center">
+        <div className="space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+          <div className="text-sm text-muted-foreground">Preparing download</div>
+          {error && <div className="max-w-sm text-sm text-destructive">{error}</div>}
         </div>
       </div>
     );
