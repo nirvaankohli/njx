@@ -332,14 +332,13 @@ export default function DocumentsPage() {
                 <CardContent className="space-y-5">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                      <Bot className="h-4 w-4 text-muted-foreground" />
-                      <div className="text-sm font-medium">Block external AI tools</div>
+                      <div className="text-md font-medium">Block external AI tools</div>
                     </div>
                     <Switch checked={blockAi} onCheckedChange={setBlockAi} />
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <Label className="text-sm font-medium">Who can Access It?</Label>
+                    <Label className="text-md font-medium">Who can Access It?</Label>
                     <Select value={accessMode} onValueChange={(value) => setAccessMode(value as AccessMode)}>
                       <SelectTrigger className="w-full sm:w-[300px]">
                         <SelectValue placeholder="People inside Organization" />
