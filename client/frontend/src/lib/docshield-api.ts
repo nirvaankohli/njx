@@ -310,6 +310,22 @@ export const api = {
   sharedDocument: (token: string) =>
     request<SharedDocument>(`/shares/${encodeURIComponent(token)}`, { method: "GET" }),
   sharedDownloadUrl: (token: string) => buildUrl(`/shares/${encodeURIComponent(token)}/download`),
+  downloadSharedDocument: async (
+    token: string,
+    credentials: { passwordHash?: string; tenantId?: string } = {},
+  ) => {
+    const response = await fetch(buildUrl(`/shares/${encodeURIComponent(token)}/download`), {
+      headers: {
+        ...(credentials.passwordHash ? { "X-Share-Password-Hash": credentials.passwordHash } : {}),
+        ...(credentials.tenantId ? { "X-Tenant-ID": credentials.tenantId } : {}),
+      },
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText);
+      throw new ApiError(response.status, message || `Request failed: ${response.status}`);
+    }
+    return response.blob();
+  },
   addHistory: (documentId: string, event: SignedHistoryEventPayload) =>
     request<HistoryAppendResponse>(`/documents/${encodeURIComponent(documentId)}/events`, {
       method: "POST",
