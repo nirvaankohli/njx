@@ -201,6 +201,11 @@ export default function DocumentsPage() {
         initial_history: [initialEvent],
       });
       await api.uploadDocumentContent(documentId, selectedFile);
+      const shareLink = await api.createShareLink(documentId, {
+        access_method: accessAnyoneWithLink ? "link" : accessMethod ?? "organization",
+        password_hash: accessPasswordHash,
+        expires_in_hours: 168,
+      });
 
       const nextDocument: LocalDocument = {
         document_id: manifest.document_id,
@@ -241,7 +246,11 @@ export default function DocumentsPage() {
           accessAnyoneWithLink,
           accessMethod,
           accessPasswordHash,
-          shareLink: null,
+          shareLink: {
+            linkId: shareLink.link_id,
+            token: shareLink.token,
+            expiresAt: shareLink.expires_at,
+          },
         },
       });
       setSignedDocument({
@@ -253,8 +262,8 @@ export default function DocumentsPage() {
       setAccessPassword("");
       setAccessPasswordConfirm("");
       setAccessMode("organization");
-      toast.success("Document signed", {
-        description: `${selectedFile.name} is now ready to download.`,
+      toast.success("Secure document ready", {
+        description: `${selectedFile.name} now has an encrypted passport and secure link.`,
       });
     } catch (err) {
       toast.error("Document signing failed", {
@@ -410,7 +419,7 @@ export default function DocumentsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Signed file ready</CardTitle>
-              <CardDescription>{signedDocument.fileName} is ready for the private download page.</CardDescription>
+              <CardDescription>{signedDocument.fileName} is protected and its secure link is ready.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">

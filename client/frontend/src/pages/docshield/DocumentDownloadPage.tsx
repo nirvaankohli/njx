@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download, FileSignature, ShieldCheck, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatFileSize } from "@/lib/docshield-file";
+import { api } from "@/lib/docshield-api";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { sha256Hex } from "@/lib/docshield-signing";
 import { toast } from "sonner";
@@ -22,30 +23,12 @@ export default function DocumentDownloadPage() {
   const organizationAllowed = organizationRequired && !!active && session.tenantId === active.signedManifest.manifest.tenant_id;
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(anyoneWithLink || organizationAllowed);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setPassword("");
     setUnlocked(anyoneWithLink || organizationAllowed);
   }, [documentId, anyoneWithLink, organizationAllowed]);
-
-  const packagePayload = useMemo(
-    () =>
-      active
-        ? {
-            source_file: {
-              name: active.sourceFileName ?? `${documentId}.pdf`,
-              type: active.sourceFileType ?? "application/octet-stream",
-              size: active.sourceFileSize ?? 0,
-            },
-            signed_manifest: active.signedManifest,
-            history: active.history,
-            manifest_hash: active.manifestHash,
-            document_id: active.documentId,
-            access_method: accessMethod ?? "anyone_with_link",
-          }
-        : null,
-    [active, documentId, accessMethod],
-  );
 
   async function unlock() {
     if (!active) {
@@ -76,17 +59,30 @@ export default function DocumentDownloadPage() {
     setUnlocked(true);
   }
 
-  function handleDownload() {
-    if (!active || !packagePayload || (!anyoneWithLink && !unlocked)) return;
-    const sourceName = active.sourceFileName ?? documentId;
-    const downloadName = `${sourceName.replace(/\.[^.]+$/, "")}.docshield.json`;
-    const blob = new Blob([JSON.stringify(packagePayload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = downloadName;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  async function handleDownload() {
+    if (!active?.shareLink || (!anyoneWithLink && !unlocked) || downloading) return;
+    setDownloading(true);
+    try {
+      const blob = await api.downloadSharedDocument(active.shareLink.token, {
+        passwordHash: passwordRequired ? active.accessPasswordHash ?? undefined : undefined,
+        tenantId: organizationRequired ? session.tenantId : undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = active.sourceFileName ?? documentId;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Protected file downloaded", {
+        description: "The original file type now contains its encrypted DocShield passport.",
+      });
+    } catch (error) {
+      toast.error("Download failed", {
+        description: error instanceof Error ? error.message : "The secure link could not be opened.",
+      });
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -109,11 +105,11 @@ export default function DocumentDownloadPage() {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Download signed document</h1>
         <p className="text-sm text-muted-foreground">
-          Download the signed bundle, not the raw file. If this file uses a password, unlock it first.
+          Download the original PDF or DOCX with its encrypted verification passport embedded inside.
         </p>
       </header>
 
-      {active && packagePayload ? (
+      {active?.shareLink ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Ready to download</CardTitle>
@@ -168,14 +164,14 @@ export default function DocumentDownloadPage() {
               <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
                 {anyoneWithLink
                   ? "Anyone with the link can open this download."
-                  : "The download contains the signed manifest and signing history."}
+                  : "The file contains an encrypted signed manifest and signing history."}
               </div>
             )}
 
             <div className="flex flex-wrap gap-2">
-              <Button onClick={handleDownload} disabled={!anyoneWithLink && !unlocked}>
+              <Button onClick={() => void handleDownload()} disabled={downloading || (!anyoneWithLink && !unlocked)}>
                 <Download className="mr-1.5 h-4 w-4" />
-                Download signed package
+                {downloading ? "Downloading…" : `Download ${active.sourceFileName ?? "protected file"}`}
               </Button>
             </div>
           </CardContent>
@@ -183,9 +179,9 @@ export default function DocumentDownloadPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">No signed package in session</CardTitle>
+            <CardTitle className="text-base">No secure file in session</CardTitle>
             <CardDescription>
-              Upload and sign a PDF or DOCX first, then return here to download the generated package.
+              Upload and sign a PDF or DOCX first. Its secure link will be generated automatically.
             </CardDescription>
           </CardHeader>
           <CardContent>
