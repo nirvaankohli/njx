@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Activity, ArrowRight, Clock3, Filter, Loader2, MapPinned, ShieldAlert } from "lucide-react";
+import { ComposableMap, Geographies, Geography, Graticule, Sphere } from "react-simple-maps";
 import { api, type AccessEvent, type AccessEventFeedItem, type AccessEventsFeedResponse } from "@/lib/docshield-api";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { mockAccessEventsFeed } from "@/lib/docshield-mock";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
+import worldCountriesTopoJson from "world-atlas/countries-110m.json";
 
 const ACTIONS: AccessEvent["action"][] = ["open", "download", "token_failed", "verify_attempt", "ai_upload_blocked"];
 const LIMIT = 40;
@@ -24,34 +26,50 @@ const FILTERS: { id: FeedFilter; label: string; description: string }[] = [
   { id: "high", label: "High severity", description: "Score 80 and above" },
 ];
 
-const DOWNLOAD_HEATMAP_POINTS: Record<string, { x: number; y: number; w: number; h: number }> = {
-  US: { x: 84, y: 186, w: 150, h: 88 },
-  CA: { x: 88, y: 118, w: 128, h: 62 },
-  MX: { x: 116, y: 248, w: 96, h: 52 },
-  BR: { x: 268, y: 270, w: 116, h: 72 },
-  GB: { x: 424, y: 112, w: 54, h: 48 },
-  FR: { x: 452, y: 146, w: 58, h: 46 },
-  DE: { x: 480, y: 136, w: 58, h: 46 },
-  ES: { x: 430, y: 176, w: 62, h: 44 },
-  IT: { x: 492, y: 176, w: 50, h: 46 },
-  RU: { x: 592, y: 108, w: 182, h: 74 },
-  TR: { x: 536, y: 192, w: 66, h: 42 },
-  SA: { x: 546, y: 228, w: 90, h: 52 },
-  EG: { x: 500, y: 212, w: 60, h: 42 },
-  IN: { x: 652, y: 226, w: 94, h: 58 },
-  CN: { x: 728, y: 172, w: 144, h: 76 },
-  JP: { x: 806, y: 164, w: 60, h: 46 },
-  AU: { x: 808, y: 320, w: 116, h: 74 },
-  ZA: { x: 520, y: 338, w: 88, h: 56 },
+const COUNTRY_NAME_TO_CODE: Record<string, string> = {
+  canada: "CA",
+  mexico: "MX",
+  brazil: "BR",
+  argentina: "AR",
+  "united states": "US",
+  "united states of america": "US",
+  us: "US",
+  uk: "GB",
+  "united kingdom": "GB",
+  "great britain": "GB",
+  britain: "GB",
+  ireland: "IE",
+  france: "FR",
+  germany: "DE",
+  spain: "ES",
+  italy: "IT",
+  netherlands: "NL",
+  sweden: "SE",
+  norway: "NO",
+  ukraine: "UA",
+  russia: "RU",
+  "russian federation": "RU",
+  turkey: "TR",
+  egypt: "EG",
+  saudiarabia: "SA",
+  "saudi arabia": "SA",
+  india: "IN",
+  pakistan: "PK",
+  bangladesh: "BD",
+  china: "CN",
+  japan: "JP",
+  korea: "KR",
+  "south korea": "KR",
+  singapore: "SG",
+  australia: "AU",
+  "new zealand": "NZ",
+  "south africa": "ZA",
+  nigeria: "NG",
+  kenya: "KE",
+  "united arab emirates": "AE",
 };
 
-const DOWNLOAD_HEATMAP_FALLBACKS = [
-  { x: 124, y: 188, w: 108, h: 56 },
-  { x: 450, y: 150, w: 58, h: 44 },
-  { x: 550, y: 228, w: 82, h: 50 },
-  { x: 720, y: 182, w: 122, h: 64 },
-  { x: 818, y: 320, w: 102, h: 68 },
-];
+const COUNTRY_DISPLAY_NAMES = typeof Intl.DisplayNames !== "undefined" ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
 
 function formatTimestamp(timestamp: string) {
   return new Date(timestamp).toLocaleString([], {
@@ -60,12 +78,27 @@ function formatTimestamp(timestamp: string) {
   });
 }
 
-function resolveHeatmapPoint(country: string, index: number) {
-  return DOWNLOAD_HEATMAP_POINTS[country] ?? DOWNLOAD_HEATMAP_FALLBACKS[index % DOWNLOAD_HEATMAP_FALLBACKS.length];
+function countryLabel(country: string) {
+  if (country === "Unknown") return "Unknown";
+  return COUNTRY_DISPLAY_NAMES?.of(country.toUpperCase()) ?? country.toUpperCase();
 }
 
-function countryLabel(country: string) {
-  return country === "Unknown" ? "Unknown" : country;
+function normalizeCountryName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z]+/g, " ")
+    .trim();
+}
+
+function resolveCountryCode(name: string) {
+  return COUNTRY_NAME_TO_CODE[normalizeCountryName(name)] ?? null;
+}
+
+function heatFill(count: number, max: number) {
+  if (!count || max <= 0) return "hsl(var(--muted-foreground) / 0.14)";
+  const intensity = count / max;
+  return `hsl(var(--warning) / ${0.28 + intensity * 0.55})`;
 }
 
 function currentBrowser(): string {
@@ -245,29 +278,29 @@ export default function AccessEventsPage() {
 
   const suspiciousEvents = useMemo(() => (feed?.events ?? []).filter((event) => event.suspicious), [feed]);
   const highSeverityEvents = useMemo(() => (feed?.events ?? []).filter((event) => event.severity === "high"), [feed]);
-  const downloadHeatmapData = useMemo(() => {
-    const downloadCounts = (feed?.events ?? [])
+  const downloadCounts = useMemo(() => {
+    return (feed?.events ?? [])
       .filter((event) => event.action === "download")
       .reduce<Record<string, number>>((acc, event) => {
-        const key = event.country ?? "Unknown";
+        const key = (event.country ?? "Unknown").toUpperCase();
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {});
-
-    return Object.entries(downloadCounts)
-      .map(([label, value], index) => {
-        const point = resolveHeatmapPoint(label, index);
-        return {
-          label,
-          value,
-          share: value / Math.max(1, Object.values(downloadCounts).reduce((sum, current) => sum + current, 0)),
-          fill: value >= 4 ? "hsl(var(--destructive))" : value >= 2 ? "hsl(var(--warning))" : "hsl(var(--primary))",
-          ...point,
-        };
-      })
-      .sort((left, right) => right.value - left.value);
   }, [feed]);
-  const downloadCount = downloadHeatmapData.reduce((sum, item) => sum + item.value, 0);
+
+  const downloadHeatmapData = useMemo(() => {
+    const total = Object.values(downloadCounts).reduce((sum, current) => sum + current, 0);
+    return Object.entries(downloadCounts)
+      .map(([country, value]) => ({
+        country,
+        value,
+        share: total ? value / total : 0,
+      }))
+      .sort((left, right) => right.value - left.value);
+  }, [downloadCounts]);
+
+  const downloadCount = useMemo(() => Object.values(downloadCounts).reduce((sum, current) => sum + current, 0), [downloadCounts]);
+  const maxDownloadCount = downloadHeatmapData[0]?.value ?? 0;
 
   useEffect(() => {
     if (!visibleEvents.length) {
@@ -413,149 +446,6 @@ export default function AccessEventsPage() {
             </CardHeader>
           </Card>
         ))}
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="border-border/60 bg-card shadow-none">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-lg">Download heatmap</CardTitle>
-            <CardDescription>Countries are shaded darker when more downloads originate there.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {downloadHeatmapData.length === 0 ? (
-              <div className="flex h-[340px] items-center justify-center rounded-3xl border border-dashed border-border/60 bg-background/50 text-sm text-muted-foreground">
-                No download geography yet.
-              </div>
-            ) : (
-              <div className="rounded-[2rem] border border-border/60 bg-background/60 p-3">
-                <svg viewBox="0 0 960 420" className="block h-auto w-full" role="img" aria-label="World map shaded by download country">
-                  <defs>
-                    <radialGradient id="anomaly-heat" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity="1" />
-                      <stop offset="50%" stopColor="hsl(var(--warning))" stopOpacity="0.9" />
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-                    </radialGradient>
-                    <filter id="anomaly-glow" x="-40%" y="-40%" width="180%" height="180%">
-                      <feGaussianBlur stdDeviation="8" />
-                    </filter>
-                  </defs>
-
-                  <rect x="0" y="0" width="960" height="420" fill="transparent" />
-                  <g opacity="0.45" stroke="hsl(var(--border))" strokeDasharray="5 9">
-                    <path d="M0 105H960" />
-                    <path d="M0 210H960" />
-                    <path d="M0 315H960" />
-                    <path d="M120 0V420" />
-                    <path d="M300 0V420" />
-                    <path d="M480 0V420" />
-                    <path d="M660 0V420" />
-                    <path d="M840 0V420" />
-                  </g>
-
-                  <g fill="hsl(var(--muted-foreground) / 0.18)" stroke="hsl(var(--border) / 0.9)" strokeWidth="2">
-                    <path d="M72 124C66 92 84 72 114 66C152 58 174 80 176 105C180 131 160 147 150 165C142 180 146 194 144 210C140 229 120 250 96 260C68 260 46 240 46 218C46 184 72 164 72 124Z" />
-                    <path d="M398 98C417 80 443 76 462 89C478 100 486 118 495 135C505 156 520 169 523 191C526 214 513 232 493 244C483 250 478 261 479 277C481 300 471 325 452 343C430 365 388 356 377 325C366 294 377 267 375 244C373 223 359 210 352 192C343 170 348 146 362 125C372 110 381 104 398 98Z" />
-                    <path d="M588 108C612 82 656 67 701 75C742 83 785 107 815 138C837 161 859 186 866 217C871 240 864 258 843 265C823 271 806 262 790 260C771 258 752 271 737 288C721 306 709 320 694 327C668 339 634 333 619 312C606 292 614 266 624 247C633 230 625 214 607 198C590 183 571 166 566 145C562 125 571 116 588 108Z" />
-                  </g>
-
-                  {downloadHeatmapData.map((entry) => {
-                    const opacity = 0.28 + entry.share * 0.55;
-                    return (
-                      <g key={entry.label}>
-                        <rect
-                          x={entry.x}
-                          y={entry.y}
-                          width={entry.w}
-                          height={entry.h}
-                          rx="18"
-                          ry="18"
-                          fill={entry.fill}
-                          opacity={opacity}
-                          filter="url(#anomaly-glow)"
-                        />
-                        <rect
-                          x={entry.x + 6}
-                          y={entry.y + 6}
-                          width={entry.w - 12}
-                          height={entry.h - 12}
-                          rx="14"
-                          ry="14"
-                          fill="hsl(var(--background))"
-                          opacity="0.18"
-                        />
-                        <text
-                          x={entry.x + entry.w / 2}
-                          y={entry.y + entry.h / 2 + 4}
-                          fill="hsl(var(--foreground))"
-                          textAnchor="middle"
-                          fontSize="15"
-                          fontWeight="700"
-                          letterSpacing="0.12em"
-                        >
-                          {entry.label}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-card shadow-none">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-lg">Download breakdown</CardTitle>
-            <CardDescription>Countries with the most downloads are surfaced first.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Downloads</div>
-                <div className="mt-2 text-lg font-semibold tabular-nums">{downloadCount}</div>
-              </div>
-              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Countries</div>
-                <div className="mt-2 text-lg font-semibold tabular-nums">{downloadHeatmapData.length}</div>
-              </div>
-              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Top country</div>
-                <div className="mt-2 text-lg font-semibold tabular-nums">{countryLabel(downloadHeatmapData[0]?.label ?? "—")}</div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {downloadHeatmapData.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
-                  No download data has been recorded yet.
-                </div>
-              ) : (
-                downloadHeatmapData.map((entry) => (
-                  <div key={entry.label} className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium">{countryLabel(entry.label)}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{entry.value} downloads</div>
-                      </div>
-                      <Badge variant="outline" className="rounded-full">
-                        {Math.round(entry.share * 100)}%
-                      </Badge>
-                    </div>
-                    <div className="mt-3 h-2 rounded-full bg-muted/70">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${Math.max(10, Math.round(entry.share * 100))}%`,
-                          backgroundColor: entry.fill,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
@@ -774,6 +664,120 @@ export default function AccessEventsPage() {
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card className="border-border/60 bg-card shadow-none">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-lg">World download map</CardTitle>
+            <CardDescription>Countries are shaded by download volume using a real map component.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {downloadHeatmapData.length === 0 ? (
+              <div className="flex h-[360px] items-center justify-center rounded-3xl border border-dashed border-border/60 bg-background/50 text-sm text-muted-foreground">
+                No download geography yet.
+              </div>
+            ) : (
+              <div className="rounded-[2rem] border border-border/60 bg-background/60 p-3">
+                <ComposableMap
+                  projection="geoEqualEarth"
+                  projectionConfig={{ scale: 155, rotate: [-12, 0, 0] }}
+                  width={980}
+                  height={520}
+                  style={{ width: "100%", height: "auto" }}
+                >
+                  <Sphere id="anomaly-sphere" stroke="hsl(var(--border))" strokeWidth={1} fill="hsl(var(--background))" />
+                  <Graticule stroke="hsl(var(--border) / 0.35)" strokeWidth={0.5} strokeDasharray="3 6" />
+                  <Geographies geography={worldCountriesTopoJson}>
+                    {({ geographies }) =>
+                      geographies.map((geography) => {
+                        const countryCode = resolveCountryCode(geography.properties.name);
+                        const count = countryCode ? downloadCounts[countryCode] ?? 0 : 0;
+                        return (
+                          <Geography
+                            key={geography.rsmKey}
+                            geography={geography}
+                            style={{
+                              default: {
+                                fill: heatFill(count, maxDownloadCount),
+                                stroke: "hsl(var(--border) / 0.7)",
+                                strokeWidth: 0.6,
+                                outline: "none",
+                              },
+                              hover: {
+                                fill: count ? "hsl(var(--warning) / 0.95)" : "hsl(var(--muted-foreground) / 0.22)",
+                                stroke: "hsl(var(--foreground) / 0.7)",
+                                strokeWidth: 0.8,
+                                outline: "none",
+                              },
+                              pressed: {
+                                outline: "none",
+                              },
+                            }}
+                          />
+                        );
+                      })
+                    }
+                  </Geographies>
+                </ComposableMap>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card shadow-none">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-lg">Download ranking</CardTitle>
+            <CardDescription>The countries with the most downloads are listed beside the map.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Downloads</div>
+                <div className="mt-2 text-lg font-semibold tabular-nums">{downloadCount}</div>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Countries</div>
+                <div className="mt-2 text-lg font-semibold tabular-nums">{downloadHeatmapData.length}</div>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Top country</div>
+                <div className="mt-2 text-lg font-semibold tabular-nums">{countryLabel(downloadHeatmapData[0]?.country ?? "Unknown")}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {downloadHeatmapData.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                  No download data has been recorded yet.
+                </div>
+              ) : (
+                downloadHeatmapData.map((entry) => (
+                  <div key={entry.country} className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{countryLabel(entry.country)}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{entry.value} downloads</div>
+                      </div>
+                      <Badge variant="outline" className="rounded-full">
+                        {Math.round(entry.share * 100)}%
+                      </Badge>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-muted/70">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(10, Math.round(entry.share * 100))}%`,
+                          backgroundColor: heatFill(entry.value, maxDownloadCount),
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );
