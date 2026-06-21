@@ -77,6 +77,7 @@ describe("AccessEventsPage", () => {
     render(<AccessEventsPage />);
 
     await waitFor(() => expect(screen.getByText("Recent events")).toBeInTheDocument());
+    expect(screen.getByText("Download heatmap")).toBeInTheDocument();
 
     const suspiciousRow = screen.getAllByText("doc_red")[0].closest("button");
     const normalRow = screen.getAllByText("doc_ok")[0].closest("button");

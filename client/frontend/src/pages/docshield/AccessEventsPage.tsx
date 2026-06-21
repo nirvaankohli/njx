@@ -24,11 +24,48 @@ const FILTERS: { id: FeedFilter; label: string; description: string }[] = [
   { id: "high", label: "High severity", description: "Score 80 and above" },
 ];
 
+const DOWNLOAD_HEATMAP_POINTS: Record<string, { x: number; y: number; w: number; h: number }> = {
+  US: { x: 84, y: 186, w: 150, h: 88 },
+  CA: { x: 88, y: 118, w: 128, h: 62 },
+  MX: { x: 116, y: 248, w: 96, h: 52 },
+  BR: { x: 268, y: 270, w: 116, h: 72 },
+  GB: { x: 424, y: 112, w: 54, h: 48 },
+  FR: { x: 452, y: 146, w: 58, h: 46 },
+  DE: { x: 480, y: 136, w: 58, h: 46 },
+  ES: { x: 430, y: 176, w: 62, h: 44 },
+  IT: { x: 492, y: 176, w: 50, h: 46 },
+  RU: { x: 592, y: 108, w: 182, h: 74 },
+  TR: { x: 536, y: 192, w: 66, h: 42 },
+  SA: { x: 546, y: 228, w: 90, h: 52 },
+  EG: { x: 500, y: 212, w: 60, h: 42 },
+  IN: { x: 652, y: 226, w: 94, h: 58 },
+  CN: { x: 728, y: 172, w: 144, h: 76 },
+  JP: { x: 806, y: 164, w: 60, h: 46 },
+  AU: { x: 808, y: 320, w: 116, h: 74 },
+  ZA: { x: 520, y: 338, w: 88, h: 56 },
+};
+
+const DOWNLOAD_HEATMAP_FALLBACKS = [
+  { x: 124, y: 188, w: 108, h: 56 },
+  { x: 450, y: 150, w: 58, h: 44 },
+  { x: 550, y: 228, w: 82, h: 50 },
+  { x: 720, y: 182, w: 122, h: 64 },
+  { x: 818, y: 320, w: 102, h: 68 },
+];
+
 function formatTimestamp(timestamp: string) {
   return new Date(timestamp).toLocaleString([], {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function resolveHeatmapPoint(country: string, index: number) {
+  return DOWNLOAD_HEATMAP_POINTS[country] ?? DOWNLOAD_HEATMAP_FALLBACKS[index % DOWNLOAD_HEATMAP_FALLBACKS.length];
+}
+
+function countryLabel(country: string) {
+  return country === "Unknown" ? "Unknown" : country;
 }
 
 function currentBrowser(): string {
@@ -208,6 +245,29 @@ export default function AccessEventsPage() {
 
   const suspiciousEvents = useMemo(() => (feed?.events ?? []).filter((event) => event.suspicious), [feed]);
   const highSeverityEvents = useMemo(() => (feed?.events ?? []).filter((event) => event.severity === "high"), [feed]);
+  const downloadHeatmapData = useMemo(() => {
+    const downloadCounts = (feed?.events ?? [])
+      .filter((event) => event.action === "download")
+      .reduce<Record<string, number>>((acc, event) => {
+        const key = event.country ?? "Unknown";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+
+    return Object.entries(downloadCounts)
+      .map(([label, value], index) => {
+        const point = resolveHeatmapPoint(label, index);
+        return {
+          label,
+          value,
+          share: value / Math.max(1, Object.values(downloadCounts).reduce((sum, current) => sum + current, 0)),
+          fill: value >= 4 ? "hsl(var(--destructive))" : value >= 2 ? "hsl(var(--warning))" : "hsl(var(--primary))",
+          ...point,
+        };
+      })
+      .sort((left, right) => right.value - left.value);
+  }, [feed]);
+  const downloadCount = downloadHeatmapData.reduce((sum, item) => sum + item.value, 0);
 
   useEffect(() => {
     if (!visibleEvents.length) {
@@ -353,6 +413,149 @@ export default function AccessEventsPage() {
             </CardHeader>
           </Card>
         ))}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <Card className="border-border/60 bg-card shadow-none">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-lg">Download heatmap</CardTitle>
+            <CardDescription>Countries are shaded darker when more downloads originate there.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {downloadHeatmapData.length === 0 ? (
+              <div className="flex h-[340px] items-center justify-center rounded-3xl border border-dashed border-border/60 bg-background/50 text-sm text-muted-foreground">
+                No download geography yet.
+              </div>
+            ) : (
+              <div className="rounded-[2rem] border border-border/60 bg-background/60 p-3">
+                <svg viewBox="0 0 960 420" className="block h-auto w-full" role="img" aria-label="World map shaded by download country">
+                  <defs>
+                    <radialGradient id="anomaly-heat" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity="1" />
+                      <stop offset="50%" stopColor="hsl(var(--warning))" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+                    </radialGradient>
+                    <filter id="anomaly-glow" x="-40%" y="-40%" width="180%" height="180%">
+                      <feGaussianBlur stdDeviation="8" />
+                    </filter>
+                  </defs>
+
+                  <rect x="0" y="0" width="960" height="420" fill="transparent" />
+                  <g opacity="0.45" stroke="hsl(var(--border))" strokeDasharray="5 9">
+                    <path d="M0 105H960" />
+                    <path d="M0 210H960" />
+                    <path d="M0 315H960" />
+                    <path d="M120 0V420" />
+                    <path d="M300 0V420" />
+                    <path d="M480 0V420" />
+                    <path d="M660 0V420" />
+                    <path d="M840 0V420" />
+                  </g>
+
+                  <g fill="hsl(var(--muted-foreground) / 0.18)" stroke="hsl(var(--border) / 0.9)" strokeWidth="2">
+                    <path d="M72 124C66 92 84 72 114 66C152 58 174 80 176 105C180 131 160 147 150 165C142 180 146 194 144 210C140 229 120 250 96 260C68 260 46 240 46 218C46 184 72 164 72 124Z" />
+                    <path d="M398 98C417 80 443 76 462 89C478 100 486 118 495 135C505 156 520 169 523 191C526 214 513 232 493 244C483 250 478 261 479 277C481 300 471 325 452 343C430 365 388 356 377 325C366 294 377 267 375 244C373 223 359 210 352 192C343 170 348 146 362 125C372 110 381 104 398 98Z" />
+                    <path d="M588 108C612 82 656 67 701 75C742 83 785 107 815 138C837 161 859 186 866 217C871 240 864 258 843 265C823 271 806 262 790 260C771 258 752 271 737 288C721 306 709 320 694 327C668 339 634 333 619 312C606 292 614 266 624 247C633 230 625 214 607 198C590 183 571 166 566 145C562 125 571 116 588 108Z" />
+                  </g>
+
+                  {downloadHeatmapData.map((entry) => {
+                    const opacity = 0.28 + entry.share * 0.55;
+                    return (
+                      <g key={entry.label}>
+                        <rect
+                          x={entry.x}
+                          y={entry.y}
+                          width={entry.w}
+                          height={entry.h}
+                          rx="18"
+                          ry="18"
+                          fill={entry.fill}
+                          opacity={opacity}
+                          filter="url(#anomaly-glow)"
+                        />
+                        <rect
+                          x={entry.x + 6}
+                          y={entry.y + 6}
+                          width={entry.w - 12}
+                          height={entry.h - 12}
+                          rx="14"
+                          ry="14"
+                          fill="hsl(var(--background))"
+                          opacity="0.18"
+                        />
+                        <text
+                          x={entry.x + entry.w / 2}
+                          y={entry.y + entry.h / 2 + 4}
+                          fill="hsl(var(--foreground))"
+                          textAnchor="middle"
+                          fontSize="15"
+                          fontWeight="700"
+                          letterSpacing="0.12em"
+                        >
+                          {entry.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card shadow-none">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-lg">Download breakdown</CardTitle>
+            <CardDescription>Countries with the most downloads are surfaced first.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Downloads</div>
+                <div className="mt-2 text-lg font-semibold tabular-nums">{downloadCount}</div>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Countries</div>
+                <div className="mt-2 text-lg font-semibold tabular-nums">{downloadHeatmapData.length}</div>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Top country</div>
+                <div className="mt-2 text-lg font-semibold tabular-nums">{countryLabel(downloadHeatmapData[0]?.label ?? "—")}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {downloadHeatmapData.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/80 p-4 text-sm text-muted-foreground">
+                  No download data has been recorded yet.
+                </div>
+              ) : (
+                downloadHeatmapData.map((entry) => (
+                  <div key={entry.label} className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{countryLabel(entry.label)}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{entry.value} downloads</div>
+                      </div>
+                      <Badge variant="outline" className="rounded-full">
+                        {Math.round(entry.share * 100)}%
+                      </Badge>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-muted/70">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(10, Math.round(entry.share * 100))}%`,
+                          backgroundColor: entry.fill,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
