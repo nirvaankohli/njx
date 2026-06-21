@@ -19,6 +19,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sqlalchemy import delete
 
 from app.db.session import Base, SessionLocal, engine
+from app.services.frontend_state_service import reset_frontend_state, SEEDED_COMPANY_NAME, SEEDED_EMAIL
 from app.models.db import (
     AccessEventORM,
     AnomalyModelStateORM,
@@ -85,10 +86,10 @@ class TenantSeedContext:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Seed the DocShield database with large volumes of realistic fake data.")
     parser.add_argument("--reset", action="store_true", help="Drop and recreate all tables before seeding.")
-    parser.add_argument("--demo", action="store_true", help="Seed a judge-ready tenant_acme workspace with familiar demo IDs.")
+    parser.add_argument("--judge", action="store_true", help="Seed the judge-ready Nirvaan Kohli / BediServices account and tenant_acme data.")
     parser.add_argument("--seed", type=int, default=7, help="Random seed for reproducible output.")
     parser.add_argument("--run-id", default=None, help="Suffix for generated IDs. Defaults to a random short value.")
-    parser.add_argument("--prefix", default="demo", help="Prefix used for generated tenant and document IDs.")
+    parser.add_argument("--prefix", default="seed", help="Prefix used for generated tenant and document IDs.")
     parser.add_argument("--tenants", type=int, default=5, help="Number of tenants to create.")
     parser.add_argument("--documents-per-tenant", type=int, default=40, help="Number of documents to create for each tenant.")
     parser.add_argument("--history-events-per-document", type=int, default=4, help="Signed history events to create for each document.")
@@ -183,13 +184,13 @@ def create_tenant_context(
     run_id: str,
     index: int,
     rng: Random,
-    demo: bool = False,
+    judge: bool = False,
 ) -> TenantSeedContext:
     org_name, domains = choose_profile(index)
-    if demo:
+    if judge:
         tenant_id = "tenant_acme"
-        org_name = "Acme Pharma"
-        domains = ["acme.com", "acmepharma.com"]
+        org_name = SEEDED_COMPANY_NAME
+        domains = ["bediservices.com"]
     else:
         tenant_id = f"{prefix}_{run_id}_tenant_{index:02d}"
 
@@ -198,7 +199,7 @@ def create_tenant_context(
     private_keys: dict[str, Ed25519PrivateKey] = {}
     for role in ("primary", "review", "archive"):
         public_key_b64, private_key = make_keypair()
-        key_id = f"key_acme_{role}" if demo else f"{tenant_id}_key_{role}"
+        key_id = f"key_acme_{role}" if judge else f"{tenant_id}_key_{role}"
         private_keys[key_id] = private_key
         key_materials[key_id] = KeyMaterial(key_id=key_id, public_key_b64=public_key_b64, private_key=private_key)
         public_keys.append(PublicKeyRecord(key_id=key_id, public_key_b64=public_key_b64, status="active"))
@@ -210,7 +211,7 @@ def create_tenant_context(
                 tenant_id=tenant_id,
                 org_name=org_name,
                 domains=domains,
-                admin_emails=[f"admin@{domains[0]}"],
+                admin_emails=[SEEDED_EMAIL if judge else f"admin@{domains[0]}"],
                 status="active",
             ),
             policy_templates=build_policy_templates(prefix, index),
@@ -460,7 +461,7 @@ def create_document_rows(
     share_links_per_document: int,
     content_base_bytes: int,
     rng: Random,
-    demo: bool = False,
+    judge: bool = False,
 ) -> dict[str, int]:
     document_count = max(1, document_count)
     history_events_per_document = max(1, history_events_per_document)
@@ -469,11 +470,11 @@ def create_document_rows(
     share_links_per_document = max(1, share_links_per_document)
     counts = {"documents": 0, "history_events": 0, "access_events": 0, "verification_logs": 0, "share_links": 0, "audit_logs": 0, "contents": 0}
     policy_templates = [template for template in build_policy_templates(prefix, tenant_index)]
-    primary_key_id = "key_acme_primary" if demo else f"{tenant.tenant.tenant_id}_key_primary"
+    primary_key_id = "key_acme_primary" if judge else f"{tenant.tenant.tenant_id}_key_primary"
     for doc_index in range(document_count):
         file_name, content_type = FILE_TYPES[doc_index % len(FILE_TYPES)]
         document_suffix = f"{tenant_index:02d}_{doc_index:04d}"
-        if demo and doc_index < 2:
+        if judge and doc_index < 2:
             document_id = "doc_7f92ab31" if doc_index == 0 else "doc_3aa11c08"
         else:
             document_id = f"{prefix}_{run_id}_doc_{document_suffix}"
@@ -677,7 +678,7 @@ def main() -> int:
     args = parse_args()
     rng = Random(args.seed)
     run_id = args.run_id or f"{rng.getrandbits(24):06x}"
-    if args.demo:
+    if args.judge:
         args.tenants = 1
         args.prefix = "tenant_acme"
 
@@ -687,6 +688,7 @@ def main() -> int:
     try:
         if args.reset:
             remove_existing_seed_rows(session)
+            reset_frontend_state()
 
         for tenant_index in range(args.tenants):
             tenant_ctx = create_tenant_context(
@@ -695,7 +697,7 @@ def main() -> int:
                 run_id=run_id,
                 index=tenant_index,
                 rng=rng,
-                demo=args.demo,
+                judge=args.judge,
             )
             counts = create_document_rows(
                 session=session,
@@ -710,7 +712,7 @@ def main() -> int:
                 share_links_per_document=args.share_links_per_document,
                 content_base_bytes=args.content_base_bytes,
                 rng=rng,
-                demo=args.demo,
+                judge=args.judge,
             )
             total_counts["tenants"] += 1
             for key, value in counts.items():

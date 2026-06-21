@@ -12,7 +12,6 @@ interface AuthContextType {
   session: Session | null;
   profile: FrontendProfile;
   loading: boolean;
-  demoSignIn: () => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -61,11 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     syncSession(next);
   };
 
-  const demoSignIn = async () => {
-    const next = await frontendApi.demoSignIn();
-    syncSession(next);
-  };
-
   const signIn = async (email: string, password: string) => {
     const next = await frontendApi.signIn({ email, password });
     syncSession(next);
@@ -82,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, demoSignIn, signUp, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

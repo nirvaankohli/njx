@@ -52,10 +52,12 @@ def test_signout_invalidates_session(client):
     assert client.get("/frontend/session").json()["user"] is None
 
 
-def test_demo_signin_bootstraps_known_session(client):
-    response = client.post("/frontend/auth/demo")
+def test_seeded_account_can_sign_in(client):
+    response = client.post(
+        "/frontend/auth/sign-in",
+        json={"email": "nirvaan.kohli@gmail.com", "password": "test123"},
+    )
 
     assert response.status_code == 200
-    assert response.json()["user"]["email"] == "demo@acme.com"
-    assert "docshield_session=" in response.headers["set-cookie"]
-    assert client.get("/frontend/session").json()["user"]["email"] == "demo@acme.com"
+    assert response.json()["user"]["email"] == "nirvaan.kohli@gmail.com"
+    assert response.json()["company_settings"]["company_name"] == "BediServices"

@@ -7,6 +7,6 @@
     "dev": "node scripts/dev.mjs",
     "start": "npm run dev",
     "seed:data": "uv run --project backend python scripts/seed_fake_data.py",
-    "seed:demo": "uv run --project backend python scripts/seed_fake_data.py --reset --demo"
+    "seed:judge": "uv run --project backend python scripts/seed_fake_data.py --reset --judge"
   }
 }

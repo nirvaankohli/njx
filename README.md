@@ -13,7 +13,7 @@ That launches the FastAPI backend on `127.0.0.1:8000` and the Vite frontend on `
 
 ## Seed fake data
 
-To populate the SQLite database with a large fake dataset for demos or stress testing:
+To populate the SQLite database with a large fake dataset for presentations or stress testing:
 
 ```sh
 npm run seed:data -- --reset
@@ -28,13 +28,13 @@ npm run seed:data -- --tenants 8 --documents-per-tenant 75 --access-events-per-d
 The script uses the same database models and signing logic as the backend, so the seeded records work with the
 existing dashboard, documents, telemetry, and verification flows.
 
-For a judge-ready demo that matches the default dashboard tenant, run:
+For the judge-ready account and BediServices tenant, run:
 
 ```sh
-npm run seed:demo
+npm run seed:judge
 ```
 
-Then open `/auth` and click **Try demo account**.
+Then sign in at `/auth` with `nirvaan.kohli@gmail.com` and `test123`.
 
 ## Verify a document
 

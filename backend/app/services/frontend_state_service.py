@@ -11,8 +11,12 @@ from app.security.passwords import hash_password, hash_session_token, new_sessio
 
 STATE_PATH = Path(__file__).resolve().parents[2] / ".frontend-state.json"
 STATE_LOCK = threading.Lock()
-DEMO_EMAIL = "demo@acme.com"
-DEMO_PASSWORD = "demo1234"
+SEEDED_EMAIL = "nirvaan.kohli@gmail.com"
+SEEDED_PASSWORD = "test123"
+SEEDED_FULL_NAME = "Nirvaan Kohli"
+SEEDED_COMPANY_NAME = "BediServices"
+SEEDED_COMPANY_WEBSITE = "https://bediservices.com"
+SEEDED_INDUSTRY = "finance"
 
 
 def _now() -> str:
@@ -20,24 +24,24 @@ def _now() -> str:
 
 
 def _seed_state() -> dict[str, Any]:
-    salt, password_hash = hash_password(DEMO_PASSWORD)
+    salt, password_hash = hash_password(SEEDED_PASSWORD)
     user = {
-        "id": "demo-user",
-        "email": DEMO_EMAIL,
-        "full_name": "DocShield Demo",
-        "job_title": "Security Lead",
+        "id": "nirvaan-kohli-user",
+        "email": SEEDED_EMAIL,
+        "full_name": SEEDED_FULL_NAME,
+        "job_title": "Founder",
         "avatar_url": None,
         "password_salt": salt,
         "password_hash": password_hash,
     }
     company = {
-        "id": "company-demo",
+        "id": "company-bediservices",
         "user_id": user["id"],
-        "company_name": "Acme Pharma",
-        "company_website": "https://acme.example",
+        "company_name": SEEDED_COMPANY_NAME,
+        "company_website": SEEDED_COMPANY_WEBSITE,
         "company_size": "50-200",
-        "industry": "Pharma",
-        "address": "1 Demo Way",
+        "industry": SEEDED_INDUSTRY,
+        "address": "1 Finance Way",
         "phone": None,
         "company_logo_url": None,
         "created_at": _now(),
@@ -47,7 +51,7 @@ def _seed_state() -> dict[str, Any]:
         "signed_out": False,
         "current_user": user,
         "company_settings": company,
-        "users": {DEMO_EMAIL: user},
+        "users": {SEEDED_EMAIL: user},
         "sessions": {},
     }
 
@@ -65,65 +69,15 @@ def _save_state(state: dict[str, Any]) -> None:
     STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True))
 
 
-def _maybe_seed_company(state: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
-    company = state.get("company_settings")
-    if company and company.get("user_id") == user["id"]:
-        return company
-    return {
-        "id": f"company-{user['id']}",
-        "user_id": user["id"],
-        "company_name": user.get("full_name") or "Acme Pharma",
-        "company_website": None,
-        "company_size": None,
-        "industry": None,
-        "address": None,
-        "phone": None,
-        "company_logo_url": None,
-        "created_at": _now(),
-        "updated_at": _now(),
-    }
-
-
 def _user_from_email(email: str, full_name: str | None = None) -> dict[str, Any]:
     seed = str(uuid.uuid5(uuid.NAMESPACE_URL, email))
     return {
         "id": seed,
         "email": email,
-        "full_name": full_name or email.split("@")[0] or "DocShield Demo",
+        "full_name": full_name or email.split("@")[0] or "DocShield User",
         "job_title": "Security Lead",
         "avatar_url": None,
     }
-
-
-def _ensure_demo_user(state: dict[str, Any]) -> dict[str, Any]:
-    users = state.setdefault("users", {})
-    account = users.get(DEMO_EMAIL)
-    if account and account.get("password_salt") and account.get("password_hash"):
-        return account
-
-    salt, password_hash = hash_password(DEMO_PASSWORD)
-    account = {
-        **_user_from_email(DEMO_EMAIL, "DocShield Demo"),
-        "password_salt": salt,
-        "password_hash": password_hash,
-    }
-    users[DEMO_EMAIL] = account
-
-    if not state.get("company_settings") or state["company_settings"].get("user_id") != account["id"]:
-        state["company_settings"] = {
-            "id": "company-demo",
-            "user_id": account["id"],
-            "company_name": "Acme Pharma",
-            "company_website": "https://acme.example",
-            "company_size": "50-200",
-            "industry": "Pharma",
-            "address": "1 Demo Way",
-            "phone": None,
-            "company_logo_url": None,
-            "created_at": _now(),
-            "updated_at": _now(),
-        }
-    return account
 
 
 def _public_user(account: dict[str, Any]) -> dict[str, Any]:
@@ -181,13 +135,11 @@ def get_frontend_session(token: str | None) -> dict[str, Any]:
         return _session_payload(state, _account_for_session(state, token))
 
 
-def start_demo_frontend_session() -> tuple[dict[str, Any], str]:
+def reset_frontend_state() -> dict[str, Any]:
     with STATE_LOCK:
-        state = _load_state()
-        account = _ensure_demo_user(state)
-        token = _start_session(state, account)
+        state = _seed_state()
         _save_state(state)
-        return _session_payload(state, account), token
+        return state
 
 
 def sign_up_frontend_session(email: str, password: str, full_name: str | None = None) -> tuple[dict[str, Any], str]:

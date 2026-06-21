@@ -31,9 +31,9 @@ export type DocShieldSession = {
 
 export const DEFAULT_DOCSHIELD_SESSION: DocShieldSession = {
   tenantId: "tenant_acme",
-  tenantName: "Acme Pharma",
-  adminEmails: ["admin@acme.com"],
-  domains: ["acme.com"],
+  tenantName: "BediServices",
+  adminEmails: ["nirvaan.kohli@gmail.com"],
+  domains: ["bediservices.com"],
   issuerKeyId: "key_acme_primary",
   activeDocument: null,
 };
