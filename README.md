@@ -11,6 +11,23 @@ npm run dev
 
 That launches the FastAPI backend on `127.0.0.1:8000` and the Vite frontend on `localhost:8080`.
 
+## Seed fake data
+
+To populate the SQLite database with a large fake dataset for demos or stress testing:
+
+```sh
+npm run seed:data -- --reset
+```
+
+You can also tune the scale, for example:
+
+```sh
+npm run seed:data -- --tenants 8 --documents-per-tenant 75 --access-events-per-document 40
+```
+
+The script uses the same database models and signing logic as the backend, so the seeded records work with the
+existing dashboard, documents, telemetry, and verification flows.
+
 ## Verify a document
 
 1. Complete organization setup so DocShield registers your Ed25519 public key.
