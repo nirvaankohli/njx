@@ -51,12 +51,7 @@ export default function VerifyPage() {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
-              Verification
-            </Badge>
-            <Badge variant="secondary" className="text-[10px] font-medium tracking-[0.08em]">
-              Workspace: {session.tenantName}
-            </Badge>
+
           </div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Verify a document</h1>
           <p className="max-w-xl text-sm leading-6 text-muted-foreground">
