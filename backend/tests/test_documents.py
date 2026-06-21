@@ -146,6 +146,7 @@ def test_list_get_filter_and_delete_document(client):
     detail = client.get("/documents/doc_manageable", params={"tenant_id": "tenant_acme"})
     assert detail.status_code == 200
     assert detail.json()["manifest_hash"] == register.json()["manifest_hash"]
+    assert [event["event_id"] for event in detail.json()["history"]] == ["evt_manageable"]
 
     removed = client.delete("/documents/doc_manageable", params={"tenant_id": "tenant_acme"})
     assert removed.status_code == 204

@@ -85,6 +85,21 @@ def get_document(session: Session, document_id: str, tenant_id: str) -> Document
         manifest=document.manifest,
         manifest_hash=document.manifest_hash,
         history_tip=document.history_tip,
+        history=[
+            SignatureHistoryEvent(
+                event_id=event.event_id,
+                document_id=event.document_id,
+                event=event.event,
+                actor_org=event.actor_org,
+                actor_key_id=event.actor_key_id,
+                timestamp=event.timestamp,
+                previous_event_hash=event.previous_event_hash,
+                manifest_hash=event.manifest_hash,
+                payload=event.payload,
+                signature=event.signature,
+            )
+            for event in document.events
+        ],
         last_verified_status=document.last_verified_status,
         last_verified_at=document.last_verified_at,
     )

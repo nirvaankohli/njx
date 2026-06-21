@@ -171,6 +171,7 @@ class DocumentDetail(DocumentSummary):
     manifest: dict
     manifest_hash: str
     history_tip: str
+    history: list[SignatureHistoryEvent] = Field(default_factory=list)
     last_verified_status: str | None = None
     last_verified_at: datetime | None = None
 
