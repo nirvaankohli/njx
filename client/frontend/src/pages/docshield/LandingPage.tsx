@@ -1,4 +1,4 @@
-import { HeroSectionNote } from "@/components/blocks/hero-section-note";
+import { HeroSectionNote } from "@/components/ui/hero-section-note";
 
 export default function LandingPage() {
   return (
