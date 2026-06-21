@@ -39,10 +39,11 @@ flowchart LR
     Registry --> DB
     Verify --> DB
     Share --> DB
+    Share --> BlobStore["Encrypted blob store\n(backend-only filesystem)"]
     Telemetry --> DB
     Risk --> DB
 
-    Share -->|"AES-GCM passport trailer"| Protected["Protected PDF / DOCX"]
+    BlobStore -->|"AES-GCM passport trailer"| Protected["Protected PDF / DOCX"]
     Protected -->|"Upload to /verify/file"| Verify
 ```
 
@@ -53,7 +54,8 @@ flowchart LR
 | Web client | React 18, TypeScript, Vite, React Router, TanStack Query, shadcn/Radix, Tailwind | Authentication UI, organization setup, document registration, verification, sharing, dashboards, audit views |
 | Browser cryptography | Web Crypto API | Generate a development Ed25519 key pair, sign canonical manifests/events, and hash uploaded bytes with SHA-256 |
 | API | FastAPI + Pydantic | HTTP contracts, orchestration, validation, error mapping, and OpenAPI docs |
-| Persistence | SQLAlchemy; SQLite by default; asyncpg dependency included | Stores tenants, keys, manifests, raw document content, links, histories, telemetry, model state, verification logs, and audit logs |
+| Persistence | SQLAlchemy; SQLite by default; asyncpg dependency included | Stores tenants, keys, manifests, content metadata, storage references, links, histories, telemetry, model state, verification logs, and audit logs |
+| Blob storage | Encrypted backend filesystem | Stores protected document bytes outside the relational database with backend-only access |
 | Cryptographic services | `cryptography` | Ed25519 verification, AES-256-GCM passport encryption, password/session helpers |
 | Risk engine | PyTorch + online statistics | Builds access features, reconstructs expected behavior, assigns scores/reasons, and updates a per-document model |
 | Local development | Root `npm run dev` orchestrator | Starts Uvicorn on `127.0.0.1:8000`, waits for readiness, then starts Vite on port 8080 |
@@ -72,7 +74,7 @@ flowchart LR
 | Setup | `POST /setup` | Upserts tenant details, policy templates, and public keys |
 | Documents | `POST/GET /documents`, `GET/DELETE /documents/{id}` | Registers and manages signed manifest records |
 | Lifecycle | `POST /documents/{id}/events` | Appends a verified, hash-linked signing event |
-| Content | `PUT /documents/{id}/content` | Stores original file bytes after fingerprint validation |
+| Content | `PUT /documents/{id}/content` | Encrypts uploaded bytes, stores them in backend blob storage, and records metadata plus a storage reference |
 | Sharing | `POST /documents/{id}/share-links`, `GET /shares/{token}`, `GET /shares/{token}/download` | Issues tokenized links, checks access conditions, records opens/downloads, and serves a protected file |
 | Verification | `POST /verify`, `POST /verify/file` | Verifies supplied passport data or extracts and verifies an embedded passport |
 | Telemetry | `POST/GET /access-events` | Ingests events, scores risk, and returns a suspicious-event feed |
@@ -87,7 +89,7 @@ The registry is tenant-scoped. Its main entities are:
 - **Policy template:** named policy JSON belonging to a tenant.
 - **Public key:** tenant-owned Ed25519 verification key with active/revoked status.
 - **Document:** signed manifest, canonical manifest hash, original content fingerprint, policy, AI tags, current history tip, revocation state, and last verification result.
-- **Document content:** file name, MIME type, size, and complete raw bytes. This is part of the implemented sharing demo and conflicts with the PRD’s “blind backend/no raw content” target architecture.
+- **Document content:** file name, MIME type, original size, encrypted blob storage key, and encrypted size. Raw bytes are no longer stored in the relational database; the current implementation keeps them in backend-only encrypted blob storage.
 - **Signature history event:** issuer/recipient lifecycle event, actor key, manifest hash, previous-event hash, payload, signature, and calculated event hash.
 - **Share link:** hashed bearer token, optional password hash, organization restriction, expiry, and status.
 - **Access event:** open/download/failure activity, client/network fields, result, risk score, and reason codes.
@@ -107,7 +109,7 @@ Database tables are created automatically at FastAPI startup. Two access-event c
 5. The browser signs those canonical bytes with Ed25519. In the current demo, the extractable private key is generated in-browser and persisted in `localStorage`.
 6. The initial `issued` event references the manifest hash, is signed separately, and is sent with the signed manifest to `POST /documents`.
 7. The backend retrieves the registered public key, verifies the manifest signature, validates the history, calculates canonical hashes, and stores the registry record.
-8. The frontend then uploads the original bytes to the content endpoint for the secure-share/download demo.
+8. The frontend then uploads the original bytes to the content endpoint; the backend encrypts them and writes the protected blob to backend-only storage while keeping only metadata in the database.
 
 ### Canonicalization and signatures
 
@@ -128,14 +130,14 @@ The current implementation is better described as an **encrypted embedded passpo
 
 ### What is embedded
 
-At download time, the backend constructs JSON containing:
+At upload time, the backend constructs JSON containing:
 
 - document ID;
 - original SHA-256 fingerprint;
 - complete signed manifest; and
 - complete signed history chain.
 
-The JSON is compactly serialized and encrypted with AES-GCM. The 256-bit AES key is the SHA-256 digest of `DOCSHIELD_EMBEDDING_SECRET`. A fresh 12-byte nonce is generated for each protected download, and fixed additional authenticated data (`docshield-embedded-document-v1`) domain-separates this use.
+The JSON is compactly serialized and encrypted with AES-GCM. The 256-bit AES key is the SHA-256 digest of `DOCSHIELD_EMBEDDING_SECRET`. A fresh 12-byte nonce is generated for each protected file, and fixed additional authenticated data (`docshield-embedded-document-v1`) domain-separates this use.
 
 The output bytes have this form:
 
@@ -260,7 +262,7 @@ The model trains for two Adam steps on each accepted learning sample (`lr=0.01`,
 
 ## 8. Secure sharing and telemetry
 
-Share links use random bearer tokens; only a hash is stored. A link can require a password, tenant/organization match, and/or expiration. Public share metadata does not expose file bytes. Download authorization records access, then returns a newly passport-wrapped copy.
+Share links use random bearer tokens; only a hash is stored. A link can require a password, tenant/organization match, and/or expiration. Public share metadata does not expose file bytes. Download authorization records access, then returns the protected bytes from backend storage.
 
 Telemetry records open, download, token failure, verification attempt, or blocked AI-upload actions together with time, link, network/client hints, result, and reason. Dashboard alerts reflect the latest risk state for documents scoring at least 50. Audit export combines the manifest, signing history, key/document revocation, all access events, current risk signal, and last verification summary.
 
@@ -268,7 +270,7 @@ Telemetry records open, download, token failure, verification attempt, or blocke
 
 - The current `/frontend/*` authentication is a demo-oriented, file-backed subsystem rather than an enterprise identity provider. Session cookies are the frontend gate, while most core API endpoints do not enforce that session or tenant authorization.
 - Development signing private keys are extractable and stored in browser `localStorage`; production keys should live in an HSM/KMS, OS keychain, smart card, or customer-controlled signing service.
-- The PRD describes a blind backend that never receives raw content. The current secure-share implementation stores raw bytes in `document_contents`. A production decision is required: customer-host the content gateway as designed, or explicitly change the privacy claim and secure content storage accordingly.
+- The PRD describes a blind backend that never receives raw content. The current secure-share implementation now stores encrypted document blobs outside the relational database in backend-only storage. Production still needs a durable object-storage plan, key rotation, retention/deletion policy, and access controls for the blob store itself.
 - IP addresses may be stored in plaintext as well as hashed form. Retention, minimization, consent, regional processing, and access controls need a documented privacy policy.
 - Exact byte hashing means benign reserialization by Word/PDF tooling produces a different fingerprint. A future normalized semantic fingerprint could improve resilience, but it would introduce format-specific canonicalization risk.
 

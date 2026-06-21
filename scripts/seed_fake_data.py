@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import os
+import shutil
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -19,6 +21,8 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sqlalchemy import delete
 
 from app.db.session import Base, SessionLocal, engine
+from app.services.blob_storage_service import store_encrypted_blob
+from app.services.embedded_document_service import embed_encrypted_passport
 from app.services.frontend_state_service import reset_frontend_state, SEEDED_COMPANY_NAME, SEEDED_EMAIL
 from app.models.db import (
     AccessEventORM,
@@ -104,6 +108,11 @@ def ensure_tables(reset: bool) -> None:
     if reset:
         Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+
+
+def reset_blob_storage() -> None:
+    storage_dir = Path(os.getenv("DOCSHIELD_BLOB_STORAGE_DIR", str(ROOT_DIR / "backend" / ".secure_blobs")))
+    shutil.rmtree(storage_dir, ignore_errors=True)
 
 
 def make_keypair() -> tuple[str, Ed25519PrivateKey]:
@@ -534,12 +543,20 @@ def create_document_rows(
             last_verification_reasons=[],
         )
 
+        session.add(document)
+        session.add_all(history_rows)
+        session.flush()
+
+        storage_key = f"{document_id}.blob"
+        protected_content = embed_encrypted_passport(session, document_id, content)
+        store_encrypted_blob(storage_key, protected_content)
         document_content = DocumentContentORM(
             document_id=document_id,
             file_name=file_name,
             content_type=content_type,
-            content=content,
             size_bytes=len(content),
+            storage_key=storage_key,
+            encrypted_size_bytes=len(protected_content),
         )
 
         link_rows: list[ShareLinkORM] = []
@@ -616,7 +633,9 @@ def create_document_rows(
                 action="document_content_seeded",
                 details={
                     "size_bytes": len(content),
+                    "encrypted_size_bytes": len(protected_content),
                     "content_type": content_type,
+                    "storage_key": storage_key,
                     "share_links": len(link_rows),
                 },
             ),
@@ -635,10 +654,8 @@ def create_document_rows(
         document.last_verified_at = last_verified_at
         document.last_verification_reasons = verification_reasons
 
-        session.add(document)
         session.add(document_content)
         session.add(anomaly_state)
-        session.add_all(history_rows)
         session.add_all(access_rows)
         session.add_all(verification_rows)
         session.add_all(link_rows)
@@ -688,6 +705,7 @@ def main() -> int:
     try:
         if args.reset:
             remove_existing_seed_rows(session)
+            reset_blob_storage()
             reset_frontend_state()
 
         for tenant_index in range(args.tenants):
