@@ -97,6 +97,11 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
         "countries": {"DE": 1, "US": 1},
     }
 
+    feed = client.get("/access-events", params={"tenant_id": "tenant_acme"}).json()
+    assert {event["country"] for event in feed["events"]} == {"DE", "US"}
+    assert all(event["browser"].startswith("TestClient") or event["browser"] == "Unknown" for event in feed["events"])
+    assert any(event["risk_score"] > 0 for event in feed["events"])
+
     verified = client.post("/verify/file", content=downloaded.content)
     assert verified.status_code == 200
     assert verified.json()["status"] == "valid"
