@@ -182,6 +182,11 @@ def _score_from_error(reconstruction_error: float) -> int:
     return max(0, min(100, round(score)))
 
 
+def _statistical_error(z_scores: dict[str, float]) -> float:
+    normalized = [max(-INPUT_CLIP, min(INPUT_CLIP, value)) / INPUT_CLIP for value in z_scores.values()]
+    return sum(value * value for value in normalized) / len(normalized)
+
+
 def _update_state_stats(state: AnomalyModelStateORM, features: dict[str, float], timestamp: datetime) -> None:
     next_count = state.sample_count + 1
     for spec in FEATURE_SPECS:
@@ -238,8 +243,13 @@ def score_access_event(session: Session, event: AccessEvent) -> tuple[int, list[
         reconstruction = model(tensor)
         residuals = tensor - reconstruction
         reconstruction_error = float(torch.mean(residuals.pow(2)).item())
-    score = _score_from_error(reconstruction_error)
+    # The statistical floor prevents a strong feature deviation from being hidden
+    # by an under-trained autoencoder or an unusually low reconstruction residual.
+    combined_error = max(reconstruction_error, _statistical_error(z_scores) * 0.75)
+    score = _score_from_error(combined_error)
     reasons = _reason_codes(z_scores, residuals)
+    if event.result == "blocked":
+        reasons = ["blocked_attempts", *(reason for reason in reasons if reason != "blocked_attempts")][:3]
     if score > 0 and not reasons:
         reasons = ["model_deviation"]
 
@@ -248,12 +258,13 @@ def score_access_event(session: Session, event: AccessEvent) -> tuple[int, list[
     if should_train:
         _train_model(model, tensor)
         state.model_state_blob = dump_model(model)
-        state.updated_at = datetime.now(timezone.utc)
+        _update_state_stats(state, features, _ensure_aware(event.timestamp))
 
     state.latest_feature_vector = features
     state.latest_score = score
     state.latest_reasons = reasons
-    _update_state_stats(state, features, _ensure_aware(event.timestamp))
+    state.last_scored_at = _ensure_aware(event.timestamp)
+    state.updated_at = datetime.now(timezone.utc)
     session.add(state)
     return score, reasons
 
