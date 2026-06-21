@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, Building2, Bot, Download, FileText, Link2, Lock, Loader2, ShieldCheck, Upload } from "lucide-react";
+import { BadgeCheck, Bot, Download, FileText, Loader2, ShieldCheck, Upload } from "lucide-react";
 import {
   api,
   type AiTag,
@@ -32,7 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 const ALL_TAGS: AiTag[] = ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY", "NO_FORWARDING", "PUBLIC_SHARING_BLOCKED"];
@@ -41,26 +41,18 @@ type AccessMode = "organization" | "anyone_with_link" | "password";
 const ACCESS_MODES: Array<{
   value: AccessMode;
   label: string;
-  description: string;
-  icon: typeof Building2;
 }> = [
   {
     value: "organization",
     label: "People inside Organization",
-    description: "Only teammates in your tenant can unlock this file.",
-    icon: Building2,
   },
   {
     value: "anyone_with_link",
     label: "Anyone with Link can access",
-    description: "Anyone with the shared link can download the package.",
-    icon: Link2,
   },
   {
     value: "password",
     label: "It needs a password",
-    description: "People need the download password before they can open it.",
-    icon: Lock,
   },
 ];
 
@@ -116,7 +108,6 @@ export default function DocumentsPage() {
   const [accessPassword, setAccessPassword] = useState("");
   const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
   const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"]);
-  const selectedAccessMode = ACCESS_MODES.find((entry) => entry.value === accessMode) ?? ACCESS_MODES[0];
 
   function toggleTag(tag: AiTag) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]));
@@ -335,42 +326,24 @@ export default function DocumentsPage() {
                   <CardDescription>Choose who can open the signed package.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-3 py-2">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
                       <Bot className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm font-medium">Block external AI tools</div>
-                        <div className="text-xs text-muted-foreground">Prevent unsupported AI services from receiving this file.</div>
-                      </div>
+                      <div className="text-sm font-medium">Block external AI tools</div>
                     </div>
                     <Switch checked={blockAi} onCheckedChange={setBlockAi} />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                      Who can access it
-                    </Label>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <Label className="text-sm font-medium">Who can Access It?</Label>
                     <Select value={accessMode} onValueChange={(value) => setAccessMode(value as AccessMode)}>
-                      <SelectTrigger className="h-auto min-h-11">
-                        <div className="flex items-center gap-2 text-left">
-                          <selectedAccessMode.icon className="h-4 w-4 text-muted-foreground" />
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">{selectedAccessMode.label}</div>
-                            <div className="truncate text-xs text-muted-foreground">{selectedAccessMode.description}</div>
-                          </div>
-                        </div>
+                      <SelectTrigger className="w-full sm:w-[300px]">
+                        <SelectValue placeholder="People inside Organization" />
                       </SelectTrigger>
                       <SelectContent>
                         {ACCESS_MODES.map((mode) => (
                           <SelectItem key={mode.value} value={mode.value}>
-                            <div className="flex items-center gap-2">
-                              <mode.icon className="h-4 w-4 text-muted-foreground" />
-                              <div className="min-w-0">
-                                <div className="truncate">{mode.label}</div>
-                                <div className="truncate text-xs text-muted-foreground">{mode.description}</div>
-                              </div>
-                            </div>
+                            {mode.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -378,7 +351,7 @@ export default function DocumentsPage() {
                   </div>
 
                   {accessMode === "password" && (
-                    <div className="space-y-2 rounded-xl border border-border px-3 py-3">
+                    <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <Lock className="h-4 w-4 text-muted-foreground" />
                         Password
