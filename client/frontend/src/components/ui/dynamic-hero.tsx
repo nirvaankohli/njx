@@ -22,6 +22,7 @@ type DynamicHeroProps = {
   heading?: string;
   tagline?: string;
   buttonText?: string;
+  buttonHref?: string;
   imageUrl?: string;
   videoUrl?: string;
   navItems?: NavigationItem[];
@@ -56,6 +57,7 @@ export function DynamicHero({
   heading = "DocShield for signed documents",
   tagline = "Keep manifests, verification, telemetry, and audit exports in one clear homepage flow.",
   buttonText = "Open the console",
+  buttonHref = "/auth",
   imageUrl = "/docshield-hero-bg-v2.jpg",
   videoUrl,
   navItems = defaultNavItems,
@@ -65,7 +67,7 @@ export function DynamicHero({
   ],
 }: DynamicHeroProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const targetRef = useRef<HTMLButtonElement | null>(null);
+  const targetRef = useRef<HTMLAnchorElement | null>(null);
   const mousePosRef = useRef<{ x: number | null; y: number | null }>({ x: null, y: null });
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
@@ -358,13 +360,11 @@ export function DynamicHero({
           </div>
 
           <div className="mt-8 flex justify-center">
-            <button
-              ref={targetRef}
-              type="button"
-              className="rounded-xl border border-foreground/50 px-4 py-2 text-foreground transition-colors hover:border-foreground/80 focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {buttonText}
-            </button>
+            <Button asChild variant="outline" className="border-foreground/50 bg-transparent">
+              <a ref={targetRef} href={buttonHref}>
+                {buttonText}
+              </a>
+            </Button>
           </div>
 
           <div className="mt-8 flex items-center justify-center gap-x-4 sm:gap-x-6">

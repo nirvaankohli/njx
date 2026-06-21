@@ -7,6 +7,7 @@ export default function LandingPage() {
       heading="DocShield keeps signed documents visible, verified, and ready to share."
       tagline="Track manifests, review access signals, and open the audit path from one homepage."
       buttonText="Open DocShield"
+      buttonHref="/auth"
       imageUrl={heroPreviewAsset}
       navItems={[
         { id: "home", label: "Home", href: "/" },
