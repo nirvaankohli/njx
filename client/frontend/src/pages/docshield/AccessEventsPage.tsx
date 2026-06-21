@@ -125,6 +125,7 @@ function FeedItemRow({
           {event.result}
         </Badge>
         <span className="text-muted-foreground">Country {event.country ?? "unknown"}</span>
+        <span className="text-muted-foreground">IP {event.ip_address ?? "unknown"}</span>
         <span className="text-muted-foreground">Browser {event.browser ?? "unknown"}</span>
         <span className={cn("font-medium", event.suspicious ? "text-red-600 dark:text-red-300" : "text-muted-foreground")}>
           Score {event.risk_score}
@@ -476,6 +477,7 @@ export default function AccessEventsPage() {
                     <DetailField label="Action" value={selectedEvent.action} />
                     <DetailField label="Result" value={selectedEvent.result ?? "allowed"} />
                     <DetailField label="Country" value={selectedEvent.country ?? "unknown"} />
+                    <DetailField label="IP address" value={selectedEvent.ip_address ?? "unknown"} />
                     <DetailField label="Browser" value={selectedEvent.browser ?? "unknown"} />
                     <DetailField label="Timestamp" value={formatTimestamp(selectedEvent.timestamp)} />
                     <DetailField label="Document" value={selectedEvent.document_id} />

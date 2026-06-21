@@ -43,6 +43,7 @@ describe("AccessEventsPage", () => {
           action: "download",
           ip_hash: "sha256:ip-red",
           user_agent_hash: "sha256:ua-red",
+          ip_address: "8.8.8.8",
           browser: "Firefox 127",
           country: "RU",
           result: "failed",

@@ -1,4 +1,5 @@
 import { getDocShieldSession } from "./docshield-session";
+import { resolveClientContext } from "./docshield-client-context";
 import type { DocShieldSession } from "./docshield-session";
 
 const BASE = (import.meta.env.VITE_DOCSHIELD_API_BASE as string | undefined) ?? "/api";
@@ -147,6 +148,7 @@ export type AccessEvent = {
   link_id?: string | null;
   timestamp: string;
   action: "open" | "download" | "token_failed" | "verify_attempt" | "ai_upload_blocked";
+  ip_address?: string | null;
   ip_hash?: string | null;
   user_agent_hash?: string | null;
   browser?: string | null;
@@ -320,15 +322,22 @@ export const api = {
     }),
   shareAnalytics: (documentId: string) =>
     request<ShareAnalytics>(`/documents/${encodeURIComponent(documentId)}/share-analytics`, { method: "GET" }),
-  sharedDocument: (token: string) =>
-    request<SharedDocument>(`/shares/${encodeURIComponent(token)}`, { method: "GET" }),
+  sharedDocument: async (token: string) => {
+    const context = await resolveClientContext();
+    return request<SharedDocument>(`/shares/${encodeURIComponent(token)}`, {
+      method: "GET",
+      headers: clientContextHeaders(context),
+    });
+  },
   sharedDownloadUrl: (token: string) => buildUrl(`/shares/${encodeURIComponent(token)}/download`),
   downloadSharedDocument: async (
     token: string,
     credentials: { passwordHash?: string; tenantId?: string } = {},
   ) => {
+    const context = await resolveClientContext();
     const response = await fetch(buildUrl(`/shares/${encodeURIComponent(token)}/download`), {
       headers: {
+        ...clientContextHeaders(context),
         ...(credentials.passwordHash ? { "X-Share-Password-Hash": credentials.passwordHash } : {}),
         ...(credentials.tenantId ? { "X-Tenant-ID": credentials.tenantId } : {}),
       },
@@ -382,6 +391,13 @@ export const api = {
   auditExportUrl: (tenantId = getDocShieldSession().tenantId, documentId = getDocShieldSession().activeDocument?.documentId ?? "doc_7f92ab31") =>
     buildUrl(`/audit-export`, { tenant_id: tenantId, document_id: documentId }),
 };
+
+function clientContextHeaders(context: { ipAddress?: string; country?: string }): Record<string, string> {
+  return {
+    ...(context.ipAddress ? { "X-Client-IP": context.ipAddress } : {}),
+    ...(context.country ? { "X-Client-Country": context.country } : {}),
+  };
+}
 
 function buildQueryPath(path: string, query: Record<string, string>) {
   const queryString = new URLSearchParams(query).toString();
