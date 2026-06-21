@@ -19,5 +19,19 @@
     "id": "6ba99b97-868c-55aa-a026-c0352e61bf33",
     "job_title": "Security Lead"
   },
-  "signed_out": false
+  "sessions": {
+    "ac3ceb7c97a5f0ea1f35913c3926c7d86bac5ee95d4be059878bab1a2399a0a9": "bedi.rajveer09@gmail.com"
+  },
+  "signed_out": false,
+  "users": {
+    "bedi.rajveer09@gmail.com": {
+      "avatar_url": null,
+      "email": "bedi.rajveer09@gmail.com",
+      "full_name": "Rajveer ",
+      "id": "6ba99b97-868c-55aa-a026-c0352e61bf33",
+      "job_title": "Security Lead",
+      "password_hash": "326035f7a7d93f36ec6482a9accbbe784042ab259af057c890d4cb9d118f23a4",
+      "password_salt": "2fd69482cc27b586d7bd5d7fed79defd"
+    }
+  }
 }
