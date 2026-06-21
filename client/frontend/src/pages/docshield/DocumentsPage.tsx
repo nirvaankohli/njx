@@ -80,6 +80,10 @@ type SignedDocumentSummary = {
   createdAt: string;
 };
 
+function describeApiFailure(error: unknown) {
+  return error instanceof Error ? error.message : "Backend unavailable";
+}
+
 export default function DocumentsPage() {
   const session = getDocShieldSession();
   const [docs, setDocs] = useState<LocalDocument[]>(
@@ -186,21 +190,35 @@ export default function DocumentsPage() {
         signature: await signCanonicalPayload(initialEventBase),
       };
 
-      await api.setup({
-        tenant: {
-          tenant_id: tenantId,
-          org_name: session.tenantName,
-          domains: session.domains,
-          admin_emails: session.adminEmails,
-        },
-        policy_templates: [],
-        public_keys: [{ key_id: issuerKeyId, public_key_b64: identity.publicKeyB64 }],
-      });
-      const response = await api.registerDocument({
-        signed_manifest: signedManifest,
-        initial_history: [initialEvent],
-      });
-      await api.uploadDocumentContent(documentId, selectedFile);
+      const localHistoryTip = await sha256Hex(canonicalJsonString(initialEvent));
+      let manifestHashToStore = manifestHash;
+      let historyTipToStore = localHistoryTip;
+      let backendSynced = false;
+      let backendErrorMessage: string | null = null;
+
+      try {
+        await api.setup({
+          tenant: {
+            tenant_id: tenantId,
+            org_name: session.tenantName,
+            domains: session.domains,
+            admin_emails: session.adminEmails,
+          },
+          policy_templates: [],
+          public_keys: [{ key_id: issuerKeyId, public_key_b64: identity.publicKeyB64 }],
+        });
+        const response = await api.registerDocument({
+          signed_manifest: signedManifest,
+          initial_history: [initialEvent],
+        });
+        await api.uploadDocumentContent(documentId, selectedFile);
+        manifestHashToStore = response.manifest_hash;
+        historyTipToStore = response.history_tip;
+        backendSynced = true;
+      } catch (error) {
+        backendSynced = false;
+        backendErrorMessage = describeApiFailure(error);
+      }
 
       const nextDocument: LocalDocument = {
         document_id: manifest.document_id,
@@ -211,8 +229,8 @@ export default function DocumentsPage() {
         signer_refs: [issuerKeyId],
         created_at: createdAt,
         status: "active",
-        manifestHash: response.manifest_hash,
-        historyTip: response.history_tip,
+        manifestHash: manifestHashToStore,
+        historyTip: historyTipToStore,
         signedManifest,
         initialHistory: [initialEvent],
         sourceFileName: selectedFile.name,
@@ -231,8 +249,8 @@ export default function DocumentsPage() {
         activeDocument: {
           documentId: nextDocument.document_id,
           contentFingerprint: fingerprint,
-          manifestHash: response.manifest_hash,
-          historyTip: response.history_tip,
+          manifestHash: manifestHashToStore,
+          historyTip: historyTipToStore,
           signedManifest,
           history: [initialEvent],
           sourceFileName: selectedFile.name,
@@ -253,9 +271,15 @@ export default function DocumentsPage() {
       setAccessPassword("");
       setAccessPasswordConfirm("");
       setAccessMode("organization");
-      toast.success("Document signed", {
-        description: `${selectedFile.name} is now ready to download.`,
-      });
+      if (backendSynced) {
+        toast.success("Document signed", {
+          description: `${selectedFile.name} is now ready to download.`,
+        });
+      } else {
+        toast.message("Saved locally", {
+          description: `${selectedFile.name} was signed in your browser session.${backendErrorMessage ? ` ${backendErrorMessage}` : ""}`,
+        });
+      }
     } catch (err) {
       toast.error("Document signing failed", {
         description: err instanceof Error ? err.message : "POST /documents not reachable",
