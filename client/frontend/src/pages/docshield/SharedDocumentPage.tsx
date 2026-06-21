@@ -76,7 +76,7 @@ export default function SharedDocumentPage() {
                 {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                 {downloading ? "Authorizing…" : "Download original document"}
               </Button>
-              <p className="text-center text-xs text-muted-foreground">Opening and downloading this link are recorded with privacy-preserving device hashes and country-level location.</p>
+              <p className="text-center text-xs text-muted-foreground">Opening and downloading this link record the client IP, browser family, and country when available.</p>
             </CardContent>
           </Card>
         )}

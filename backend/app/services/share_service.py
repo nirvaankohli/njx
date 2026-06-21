@@ -7,10 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.db import AccessEventORM, DocumentContentORM, DocumentORM, ShareLinkORM
-from app.models.dto import ShareAnalyticsResponse, ShareDocumentResponse, ShareLinkCreateRequest, ShareLinkResponse
+from app.models.dto import AccessEvent, ShareAnalyticsResponse, ShareDocumentResponse, ShareLinkCreateRequest, ShareLinkResponse
 from app.security.hashes import sha256_hex
 from app.services.embedded_document_service import embed_encrypted_passport
 from app.services.errors import ConflictError, DocShieldError, NotFoundError
+from app.services.telemetry_service import record_access_event
 
 
 def store_document_content(
@@ -111,24 +112,24 @@ def record_share_access(
     link: ShareLinkORM,
     action: str,
     country: str | None,
+    browser: str,
     client_ip: str | None,
     user_agent: str | None,
 ) -> None:
-    session.add(AccessEventORM(
+    record_access_event(session, AccessEvent(
         event_id=f"acc_{secrets.token_hex(12)}",
         tenant_id=link.tenant_id,
         document_id=link.document_id,
         link_id=link.link_id,
         timestamp=datetime.now(timezone.utc),
         action=action,
+        ip_address=client_ip,
         ip_hash=sha256_hex((client_ip or "unknown").encode()),
         user_agent_hash=sha256_hex((user_agent or "unknown").encode()),
-        country=(country or "unknown").upper(),
+        browser=browser,
+        country=country,
         result="allowed",
-        risk_score=0,
-        risk_reasons=[],
     ))
-    session.commit()
 
 
 def share_analytics(session: Session, document_id: str) -> ShareAnalyticsResponse:
