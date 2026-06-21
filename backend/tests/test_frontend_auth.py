@@ -50,3 +50,12 @@ def test_signout_invalidates_session(client):
 
     assert client.delete("/frontend/session").status_code == 200
     assert client.get("/frontend/session").json()["user"] is None
+
+
+def test_demo_signin_bootstraps_known_session(client):
+    response = client.post("/frontend/auth/demo")
+
+    assert response.status_code == 200
+    assert response.json()["user"]["email"] == "demo@acme.com"
+    assert "docshield_session=" in response.headers["set-cookie"]
+    assert client.get("/frontend/session").json()["user"]["email"] == "demo@acme.com"

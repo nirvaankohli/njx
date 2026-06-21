@@ -28,6 +28,14 @@ npm run seed:data -- --tenants 8 --documents-per-tenant 75 --access-events-per-d
 The script uses the same database models and signing logic as the backend, so the seeded records work with the
 existing dashboard, documents, telemetry, and verification flows.
 
+For a judge-ready demo that matches the default dashboard tenant, run:
+
+```sh
+npm run seed:demo
+```
+
+Then open `/auth` and click **Try demo account**.
+
 ## Verify a document
 
 1. Complete organization setup so DocShield registers your Ed25519 public key.

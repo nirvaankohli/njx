@@ -87,6 +87,7 @@ export type FrontendCompanySettingsRequest = {
 
 export const frontendApi = {
   session: () => request<FrontendSession>("/frontend/session", { method: "GET" }),
+  demoSignIn: () => request<FrontendSession>("/frontend/auth/demo", { method: "POST" }),
   signIn: (payload: FrontendAuthRequest) =>
     request<FrontendSession>("/frontend/auth/sign-in", {
       method: "POST",

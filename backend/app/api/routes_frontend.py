@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.services.frontend_state_service import (
     get_company_settings,
     get_frontend_session,
+    start_demo_frontend_session,
     sign_in_frontend_session,
     sign_out_frontend_session,
     sign_up_frontend_session,
@@ -55,6 +56,13 @@ def frontend_sign_in(payload: FrontendAuthRequest, request: Request, response: R
         session, token = sign_in_frontend_session(payload.email, payload.password)
     except ValueError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
+    _set_session_cookie(response, request, token)
+    return session
+
+
+@router.post("/frontend/auth/demo")
+def frontend_demo_sign_in(request: Request, response: Response):
+    session, token = start_demo_frontend_session()
     _set_session_cookie(response, request, token)
     return session
 

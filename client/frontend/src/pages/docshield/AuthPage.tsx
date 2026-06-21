@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DocShieldBrand } from "@/components/DocShieldBrand";
 
 export default function AuthPage() {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, signIn, signUp, demoSignIn } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
   const redirectTo = (location.state as { from?: string } | null)?.from ?? "/app";
@@ -62,6 +62,18 @@ export default function AuthPage() {
     }
   };
 
+  const handleDemo = async () => {
+    setIsSubmitting(true);
+    try {
+      await demoSignIn();
+      toast({ title: "Demo account ready", description: "Jumping into the console now." });
+    } catch (err: any) {
+      toast({ title: "Demo login failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-[420px] border border-border rounded-md p-8 space-y-6">
@@ -96,6 +108,9 @@ export default function AuthPage() {
               <Button type="submit" className="w-full h-9 text-[13px]" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                 Sign in
+              </Button>
+              <Button type="button" variant="secondary" className="w-full h-9 text-[13px]" disabled={isSubmitting} onClick={handleDemo}>
+                Try demo account
               </Button>
             </form>
           </TabsContent>

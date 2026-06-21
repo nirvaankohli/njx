@@ -85,6 +85,7 @@ class TenantSeedContext:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Seed the DocShield database with large volumes of realistic fake data.")
     parser.add_argument("--reset", action="store_true", help="Drop and recreate all tables before seeding.")
+    parser.add_argument("--demo", action="store_true", help="Seed a judge-ready tenant_acme workspace with familiar demo IDs.")
     parser.add_argument("--seed", type=int, default=7, help="Random seed for reproducible output.")
     parser.add_argument("--run-id", default=None, help="Suffix for generated IDs. Defaults to a random short value.")
     parser.add_argument("--prefix", default="demo", help="Prefix used for generated tenant and document IDs.")
@@ -175,16 +176,29 @@ def build_policy_templates(prefix: str, index: int) -> list[PolicyTemplate]:
     ]
 
 
-def create_tenant_context(session, *, prefix: str, run_id: str, index: int, rng: Random) -> TenantSeedContext:
+def create_tenant_context(
+    session,
+    *,
+    prefix: str,
+    run_id: str,
+    index: int,
+    rng: Random,
+    demo: bool = False,
+) -> TenantSeedContext:
     org_name, domains = choose_profile(index)
-    tenant_id = f"{prefix}_{run_id}_tenant_{index:02d}"
+    if demo:
+        tenant_id = "tenant_acme"
+        org_name = "Acme Pharma"
+        domains = ["acme.com", "acmepharma.com"]
+    else:
+        tenant_id = f"{prefix}_{run_id}_tenant_{index:02d}"
 
     key_materials: dict[str, KeyMaterial] = {}
     public_keys: list[PublicKeyRecord] = []
     private_keys: dict[str, Ed25519PrivateKey] = {}
     for role in ("primary", "review", "archive"):
         public_key_b64, private_key = make_keypair()
-        key_id = f"{tenant_id}_key_{role}"
+        key_id = f"key_acme_{role}" if demo else f"{tenant_id}_key_{role}"
         private_keys[key_id] = private_key
         key_materials[key_id] = KeyMaterial(key_id=key_id, public_key_b64=public_key_b64, private_key=private_key)
         public_keys.append(PublicKeyRecord(key_id=key_id, public_key_b64=public_key_b64, status="active"))
@@ -234,6 +248,7 @@ def build_history_chain(
     created_at: datetime,
     event_count: int,
     rng: Random,
+    primary_key_id: str,
 ) -> tuple[list[SignatureHistoryEventORM], str, datetime, bool]:
     event_types = ["issued", "sent", "received", "confirmed_received", "approved", "reissued"]
     active_keys = list(tenant.private_keys.keys())
@@ -247,11 +262,11 @@ def build_history_chain(
         if index == 0:
             event_type = "issued"
             actor_org = tenant.tenant.org_name
-            actor_key_id = f"{tenant.tenant.tenant_id}_key_primary"
+            actor_key_id = primary_key_id
         elif index == event_count - 1 and rng.random() < 0.18:
             event_type = "revoked"
             actor_org = f"{tenant.tenant.org_name} Compliance"
-            actor_key_id = f"{tenant.tenant.tenant_id}_key_review"
+            actor_key_id = primary_key_id.replace("primary", "review")
             revoked = True
         else:
             event_type = event_types[min(index, len(event_types) - 1)]
@@ -445,6 +460,7 @@ def create_document_rows(
     share_links_per_document: int,
     content_base_bytes: int,
     rng: Random,
+    demo: bool = False,
 ) -> dict[str, int]:
     document_count = max(1, document_count)
     history_events_per_document = max(1, history_events_per_document)
@@ -453,11 +469,14 @@ def create_document_rows(
     share_links_per_document = max(1, share_links_per_document)
     counts = {"documents": 0, "history_events": 0, "access_events": 0, "verification_logs": 0, "share_links": 0, "audit_logs": 0, "contents": 0}
     policy_templates = [template for template in build_policy_templates(prefix, tenant_index)]
-    primary_key_id = f"{tenant.tenant.tenant_id}_key_primary"
+    primary_key_id = "key_acme_primary" if demo else f"{tenant.tenant.tenant_id}_key_primary"
     for doc_index in range(document_count):
         file_name, content_type = FILE_TYPES[doc_index % len(FILE_TYPES)]
         document_suffix = f"{tenant_index:02d}_{doc_index:04d}"
-        document_id = f"{prefix}_{run_id}_doc_{document_suffix}"
+        if demo and doc_index < 2:
+            document_id = "doc_7f92ab31" if doc_index == 0 else "doc_3aa11c08"
+        else:
+            document_id = f"{prefix}_{run_id}_doc_{document_suffix}"
         file_name = f"{slugify(document_id)}-{file_name}"
         created_at = datetime.now(timezone.utc) - timedelta(days=rng.randint(0, 120), hours=rng.randint(0, 23))
         content = build_content(rng, content_base_bytes, document_id)
@@ -491,6 +510,7 @@ def create_document_rows(
             created_at=created_at,
             event_count=history_events_per_document,
             rng=rng,
+            primary_key_id=primary_key_id,
         )
 
         document = DocumentORM(
@@ -657,6 +677,9 @@ def main() -> int:
     args = parse_args()
     rng = Random(args.seed)
     run_id = args.run_id or f"{rng.getrandbits(24):06x}"
+    if args.demo:
+        args.tenants = 1
+        args.prefix = "tenant_acme"
 
     ensure_tables(args.reset)
     session = SessionLocal()
@@ -666,7 +689,14 @@ def main() -> int:
             remove_existing_seed_rows(session)
 
         for tenant_index in range(args.tenants):
-            tenant_ctx = create_tenant_context(session, prefix=args.prefix, run_id=run_id, index=tenant_index, rng=rng)
+            tenant_ctx = create_tenant_context(
+                session,
+                prefix=args.prefix,
+                run_id=run_id,
+                index=tenant_index,
+                rng=rng,
+                demo=args.demo,
+            )
             counts = create_document_rows(
                 session=session,
                 tenant=tenant_ctx,
@@ -680,6 +710,7 @@ def main() -> int:
                 share_links_per_document=args.share_links_per_document,
                 content_base_bytes=args.content_base_bytes,
                 rng=rng,
+                demo=args.demo,
             )
             total_counts["tenants"] += 1
             for key, value in counts.items():
