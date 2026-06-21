@@ -120,6 +120,7 @@ export type DocumentDetail = DocumentSummary & {
   manifest: Record<string, unknown>;
   manifest_hash: string;
   history_tip: string;
+  history: SignedHistoryEventPayload[];
   last_verified_status: string | null;
   last_verified_at: string | null;
 };
