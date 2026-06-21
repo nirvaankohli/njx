@@ -78,6 +78,12 @@ import DocumentsPage from "./DocumentsPage";
 describe("DocumentsPage", () => {
   it("keeps the signed document in the local session when backend setup fails", async () => {
     const file = new File(["hello world"], "agreement.pdf", { type: "application/pdf" });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
 
     apiMocks.setup.mockRejectedValueOnce(new Error("Internal Server Error"));
     apiMocks.registerDocument.mockResolvedValueOnce({
@@ -122,6 +128,12 @@ describe("DocumentsPage", () => {
       expect(screen.getByText("Signed file ready")).toBeInTheDocument();
       expect(screen.getAllByText("agreement.pdf")).toHaveLength(2);
     });
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy download image" }));
+
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/app/documents/doc_agreement_abc123/download`,
+    );
 
     expect(apiMocks.setup).toHaveBeenCalledTimes(1);
     expect(sessionUpdateMock.updateDocShieldSession).toHaveBeenCalledWith(

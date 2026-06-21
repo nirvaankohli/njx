@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, Bot, Building2, Download, FileText, Link2, Lock, Loader2, ShieldCheck, Upload } from "lucide-react";
+import {
+  BadgeCheck,
+  Bot,
+  Building2,
+  Copy,
+  Download,
+  FileText,
+  Link2,
+  Lock,
+  Loader2,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
 import {
   api,
   type AiTag,
@@ -296,6 +308,15 @@ export default function DocumentsPage() {
     e.target.value = "";
   }
 
+  async function copyDownloadImage() {
+    if (!signedDocument) return;
+    const downloadUrl = `${window.location.origin}/app/documents/${encodeURIComponent(signedDocument.documentId)}/download`;
+    await navigator.clipboard.writeText(downloadUrl);
+    toast.success("Download link copied", {
+      description: "Paste it anywhere to open the signed download page.",
+    });
+  }
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
@@ -449,6 +470,10 @@ export default function DocumentsPage() {
                     <Download className="mr-1.5 h-4 w-4" />
                     Open download page
                   </Link>
+                </Button>
+                <Button variant="outline" onClick={() => void copyDownloadImage()}>
+                  <Copy className="mr-1.5 h-4 w-4" />
+                  Copy download image
                 </Button>
               </div>
             </CardContent>
