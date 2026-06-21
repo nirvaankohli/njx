@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, FileText, Loader2, ShieldCheck, Upload, X } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
-import { api, type AiTag, type SignedHistoryEventPayload, type SignedManifestPayload } from "@/lib/docshield-api";
+import { BadgeCheck, Bot, Building2, Download, FileText, Link2, Lock, Loader2, ShieldCheck, Upload } from "lucide-react";
+import {
+  api,
+  type AiTag,
+  type DocumentManifest,
+  type SignedHistoryEventPayload,
+  type SignedManifestPayload,
+} from "@/lib/docshield-api";
+import { mockDocuments } from "@/lib/docshield-mock";
 import {
   buildDocumentId,
   fingerprintDocumentFile,
@@ -18,233 +24,464 @@ import {
   toBackendIsoString,
 } from "@/lib/docshield-signing";
 import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
-import { Badge } from "@/components/ui/badge";
+import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const ALL_TAGS: AiTag[] = ["NO_EXTERNAL_AI", "SECURE_LINK_ONLY", "NO_FORWARDING", "PUBLIC_SHARING_BLOCKED"];
+const ALL_TAGS: AiTag[] = ["NO_EXTERNAL_AI"];
+type AccessMode = "organization" | "anyone_with_link" | "password";
+
+const ACCESS_MODES: Array<{
+  value: AccessMode;
+  label: string;
+  icon: typeof Building2;
+}> = [
+  {
+    value: "organization",
+    label: "People inside Organization",
+    icon: Building2,
+  },
+  {
+    value: "anyone_with_link",
+    label: "Anyone with Link can access",
+    icon: Link2,
+  },
+  {
+    value: "password",
+    label: "It needs a password",
+    icon: Lock,
+  },
+];
+
+type LocalDocument = DocumentManifest & {
+  manifestHash: string;
+  historyTip: string;
+  signedManifest: SignedManifestPayload;
+  initialHistory: SignedHistoryEventPayload[];
+  sourceFileName?: string;
+  sourceFileType?: string;
+  sourceFileSize?: number;
+  accessAnyoneWithLink?: boolean;
+  accessMethod?: AccessMode | null;
+  accessPasswordHash?: string | null;
+};
 
 type SignedDocumentSummary = {
   documentId: string;
   fileName: string;
   fingerprint: string;
+  createdAt: string;
 };
 
 export default function DocumentsPage() {
-  const reducedMotion = useReducedMotion() ?? false;
   const session = getDocShieldSession();
+  const [docs, setDocs] = useState<LocalDocument[]>(
+    mockDocuments.map((doc) => ({
+      ...doc,
+      manifestHash: `sha256:${doc.document_id}`,
+      historyTip: `sha256:${doc.document_id}-tip`,
+      signedManifest: {
+        manifest: {
+          schema_version: "1.0",
+          tenant_id: doc.tenant_id,
+          document_id: doc.document_id,
+          issuer_key_id: session.issuerKeyId,
+          content_fingerprint: doc.content_fingerprint,
+          policy: doc.policy,
+          embedded_ai_tags: doc.embedded_ai_tags,
+          created_at: doc.created_at ?? new Date().toISOString(),
+        },
+        manifest_signature: "ed25519:demo",
+        signature_algorithm: "Ed25519",
+      },
+      initialHistory: [],
+    })),
+  );
+  const [busy, setBusy] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [signedDocument, setSignedDocument] = useState<SignedDocumentSummary | null>(null);
-  const [busy, setBusy] = useState(false);
   const [blockAi, setBlockAi] = useState(true);
-  const [anyoneWithLink, setAnyoneWithLink] = useState(true);
-  const [accessMethod, setAccessMethod] = useState<"password" | "organization">("password");
+  const [accessMode, setAccessMode] = useState<AccessMode>("organization");
   const [accessPassword, setAccessPassword] = useState("");
   const [accessPasswordConfirm, setAccessPasswordConfirm] = useState("");
-  const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"]);
-
-  const privateAccessEnabled = !anyoneWithLink;
+  const [tags, setTags] = useState<AiTag[]>(["NO_EXTERNAL_AI"]);
 
   function toggleTag(tag: AiTag) {
-    setTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
-  }
-
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
-    if (file && !isSupportedDocumentFile(file)) {
-      toast.error("Choose a PDF or DOCX file");
-      event.target.value = "";
-      return;
-    }
-    setSelectedFile(file);
-    setSignedDocument(null);
-  }
-
-  function clearSelectedFile() {
-    setSelectedFile(null);
-    setSignedDocument(null);
-    setAccessPassword("");
-    setAccessPasswordConfirm("");
-  }
-
-  function handleAnyoneWithLinkChange(value: boolean) {
-    setAnyoneWithLink(value);
-    if (value) {
-      setAccessPassword("");
-      setAccessPasswordConfirm("");
-    }
+    setTags((prev) => (prev.includes(tag) ? prev.filter((entry) => entry !== tag) : [...prev, tag]));
   }
 
   async function signDocument() {
-    if (!selectedFile) return;
-    if (privateAccessEnabled && accessMethod === "password") {
-      if (accessPassword.length < 8) {
-        toast.error("Use an access password with at least 8 characters");
-        return;
-      }
-      if (accessPassword !== accessPasswordConfirm) {
-        toast.error("The access passwords do not match");
-        return;
-      }
+    if (!selectedFile || busy) return;
+    if (!isSupportedDocumentFile(selectedFile)) {
+      toast.error("Unsupported file type", {
+        description: "Upload a PDF or DOCX file.",
+      });
+      return;
+    }
+
+    if (accessMode === "password" && (!accessPassword.trim() || accessPassword !== accessPasswordConfirm)) {
+      toast.error("Password mismatch", {
+        description: "Enter the same password twice before signing.",
+      });
+      return;
     }
 
     setBusy(true);
+
     try {
       const identity = await getDevSigningIdentity();
+      const tenantId = session.tenantId;
+      const issuerKeyId = identity.keyId;
+      const actorOrg = session.tenantName || "Employee";
+      const fileType = inferDocumentMimeType(selectedFile);
       const fingerprint = await fingerprintDocumentFile(selectedFile);
       const createdAt = toBackendIsoString();
       const documentId = buildDocumentId(selectedFile.name, fingerprint);
-      const accessPasswordHash =
-        privateAccessEnabled && accessMethod === "password" ? await sha256Hex(accessPassword.trim()) : null;
+      const accessPasswordHash = accessMode === "password" ? await sha256Hex(accessPassword.trim()) : null;
+      const accessAnyoneWithLink = accessMode === "anyone_with_link";
+      const accessMethod = accessMode === "organization" ? "organization" : accessMode === "password" ? "password" : null;
       const manifest = {
         schema_version: "1.0",
-        tenant_id: session.tenantId,
+        tenant_id: tenantId,
         document_id: documentId,
-        issuer_key_id: identity.keyId,
+        issuer_key_id: issuerKeyId,
         content_fingerprint: fingerprint,
         policy: {
           external_ai_upload: blockAi ? "blocked" : "allowed",
           secure_link_required: true,
-          forwarding: privateAccessEnabled ? "blocked" : "allowed",
-          public_sharing: anyoneWithLink ? "allowed" : "blocked",
+          forwarding: "blocked",
+          public_sharing: accessAnyoneWithLink ? "allowed" : "blocked",
         } as const,
         embedded_ai_tags: tags,
         created_at: createdAt,
       };
+
       const manifestHash = await sha256Hex(canonicalJsonString(manifest));
       const signedManifest: SignedManifestPayload = {
         manifest,
         manifest_signature: await signCanonicalPayload(manifest),
         signature_algorithm: "Ed25519",
       };
-      const eventBody = {
+
+      const initialEventBase = {
         event_id: `evt_issued_${crypto.randomUUID()}`,
-        document_id: documentId,
+        document_id: manifest.document_id,
         event: "issued" as const,
-        actor_org: session.tenantName,
-        actor_key_id: identity.keyId,
+        actor_org: actorOrg,
+        actor_key_id: issuerKeyId,
         timestamp: createdAt,
         previous_event_hash: null,
         manifest_hash: manifestHash,
         payload: { file_name: selectedFile.name },
       };
-      const issuedEvent: SignedHistoryEventPayload = {
-        ...eventBody,
-        signature: await signCanonicalPayload(eventBody),
+      const initialEvent: SignedHistoryEventPayload = {
+        ...initialEventBase,
+        signature: await signCanonicalPayload(initialEventBase),
       };
 
       await api.setup({
         tenant: {
-          tenant_id: session.tenantId,
+          tenant_id: tenantId,
           org_name: session.tenantName,
           domains: session.domains,
           admin_emails: session.adminEmails,
         },
         policy_templates: [],
-        public_keys: [{ key_id: identity.keyId, public_key_b64: identity.publicKeyB64 }],
+        public_keys: [{ key_id: issuerKeyId, public_key_b64: identity.publicKeyB64 }],
       });
-      const response = await api.registerDocument({ signed_manifest: signedManifest, initial_history: [issuedEvent] });
+      const response = await api.registerDocument({
+        signed_manifest: signedManifest,
+        initial_history: [initialEvent],
+      });
       await api.uploadDocumentContent(documentId, selectedFile);
 
+      const nextDocument: LocalDocument = {
+        document_id: manifest.document_id,
+        tenant_id: tenantId,
+        content_fingerprint: fingerprint,
+        policy: manifest.policy,
+        embedded_ai_tags: tags,
+        signer_refs: [issuerKeyId],
+        created_at: createdAt,
+        status: "active",
+        manifestHash: response.manifest_hash,
+        historyTip: response.history_tip,
+        signedManifest,
+        initialHistory: [initialEvent],
+        sourceFileName: selectedFile.name,
+        sourceFileType: fileType,
+        sourceFileSize: selectedFile.size,
+        accessAnyoneWithLink,
+        accessMethod,
+        accessPasswordHash,
+      };
+
+      setDocs((current) => [nextDocument, ...current.filter((doc) => doc.document_id !== nextDocument.document_id)]);
       updateDocShieldSession({
-        issuerKeyId: identity.keyId,
+        tenantId,
+        tenantName: session.tenantName,
+        issuerKeyId,
         activeDocument: {
-          documentId,
+          documentId: nextDocument.document_id,
           contentFingerprint: fingerprint,
           manifestHash: response.manifest_hash,
           historyTip: response.history_tip,
           signedManifest,
-          history: [issuedEvent],
+          history: [initialEvent],
           sourceFileName: selectedFile.name,
-          sourceFileType: inferDocumentMimeType(selectedFile),
+          sourceFileType: fileType,
           sourceFileSize: selectedFile.size,
-          accessAnyoneWithLink: anyoneWithLink,
-          accessMethod: privateAccessEnabled ? accessMethod : null,
+          accessAnyoneWithLink,
+          accessMethod,
           accessPasswordHash,
           shareLink: null,
         },
       });
-      setSignedDocument({ documentId, fileName: selectedFile.name, fingerprint });
-      toast.success("Document signed", { description: "Its hash and Ed25519 signature are registered." });
-    } catch (error) {
+      setSignedDocument({
+        documentId: nextDocument.document_id,
+        fileName: selectedFile.name,
+        fingerprint,
+        createdAt,
+      });
+      setAccessPassword("");
+      setAccessPasswordConfirm("");
+      setAccessMode("organization");
+      toast.success("Document signed", {
+        description: `${selectedFile.name} is now ready to download.`,
+      });
+    } catch (err) {
       toast.error("Document signing failed", {
-        description: error instanceof Error ? error.message : "The document could not be registered.",
+        description: err instanceof Error ? err.message : "POST /documents not reachable",
       });
     } finally {
       setBusy(false);
     }
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    setSignedDocument(null);
+    e.target.value = "";
+  }
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <Badge variant="secondary" className="gap-1"><BadgeCheck className="h-3.5 w-3.5" />Organization signing</Badge>
-        <h1 className="text-2xl font-semibold tracking-tight">Upload and sign a document</h1>
-        <p className="text-sm text-muted-foreground">The file hash is signed by your organization and registered for later verification.</p>
+        <div className="flex flex-wrap items-center gap-2">
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Upload a file to be encrypted or signed.</h1>
+        <p className="text-sm text-muted-foreground">
+          Choose a PDF or DOCX, then set the access controls before signing.
+        </p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <ProcessStep number="1" title="Upload" description="Choose the original PDF or DOCX." />
-        <ProcessStep number="2" title="Sign" description="Register its SHA-256 hash and signature." />
-        <ProcessStep number="3" title="Share" description="Create a tracked secure link." />
+      <div className="space-y-6">
+        <Card className="w-full overflow-hidden">
+          <CardHeader>
+            <CardTitle className="text-base">Upload</CardTitle>
+            <CardDescription>Drop a file or choose one from your device.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <label
+              htmlFor="doc-upload"
+              className="flex min-h-44 w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
+            >
+              <Upload className="h-10 w-10 text-primary" />
+              <div className="mt-4 max-w-md space-y-2">
+                <div className="text-lg font-medium">Upload a file to be encrypted or signed</div>
+                <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
+              </div>
+            </label>
+            <Input
+              id="doc-upload"
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={busy}
+            />
+
+            {selectedFile && (
+              <div className="rounded-2xl border border-border bg-background/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
+                    <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="gap-1">
+                    <FileText className="h-3.5 w-3.5" />
+                    Ready
+                  </Badge>
+                </div>
+              </div>
+            )}
+
+            {selectedFile && (
+              <Card className="border-border/80 bg-background/70">
+                <CardHeader className="space-y-1.5">
+                  <CardTitle className="text-base">Access rules</CardTitle>
+                  <CardDescription>Choose who can open the signed package.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="text-md font-medium">Block external AI tools</div>
+                    </div>
+                    <Switch checked={blockAi} onCheckedChange={setBlockAi} />
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <Label className="text-md font-medium">Who can Access It?</Label>
+                    <Select value={accessMode} onValueChange={(value) => setAccessMode(value as AccessMode)}>
+                      <SelectTrigger className="w-full sm:w-[300px]">
+                        <SelectValue placeholder="People inside Organization" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACCESS_MODES.map((mode) => (
+                          <SelectItem key={mode.value} value={mode.value}>
+                            <div className="flex items-center gap-2">
+                              <mode.icon className="h-4 w-4 text-muted-foreground" />
+                              <span>{mode.label}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {accessMode === "password" && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-muted-foreground" />
+                        Password
+                      </Label>
+                      <Input
+                        type="password"
+                        value={accessPassword}
+                        onChange={(e) => setAccessPassword(e.target.value)}
+                        placeholder="Create a password for the download page"
+                      />
+                      <Input
+                        type="password"
+                        value={accessPasswordConfirm}
+                        onChange={(e) => setAccessPasswordConfirm(e.target.value)}
+                        placeholder="Repeat the password"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="mb-3 text-sm font-medium">Embedded AI tags</div>
+                    <div className="flex flex-wrap gap-3">
+                      {ALL_TAGS.map((tag) => (
+                        <label key={tag} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                          <Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} />
+                          <span className="font-mono text-xs">{humanizeDocShieldLabel(tag)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">Configure the access controls, then sign the file.</p>
+                    <Button onClick={() => void signDocument()} disabled={busy || !selectedFile}>
+                      {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                      Sign file
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </CardContent>
+        </Card>
+
+        {signedDocument && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Signed file ready</CardTitle>
+              <CardDescription>{signedDocument.fileName} is ready for the private download page.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SignedField label="Document ID" value={signedDocument.documentId} mono />
+                <SignedField label="Fingerprint" value={signedDocument.fingerprint} mono />
+                <SignedField label="Signed at" value={signedDocument.createdAt} mono />
+                <SignedField label="File name" value={signedDocument.fileName} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to={`/app/documents/${encodeURIComponent(signedDocument.documentId)}/download`}>
+                    <Download className="mr-1.5 h-4 w-4" />
+                    Open download page
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Documents Uploaded</CardTitle>
+            <CardDescription>Your signed files stay in this session.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {docs.map((doc) => (
+              <Link
+                key={doc.document_id}
+                to={`/app/documents/${encodeURIComponent(doc.document_id)}`}
+                className="block rounded-xl border border-border bg-background/60 p-4 transition-colors hover:border-primary/40 hover:bg-secondary/30"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <div className="truncate font-medium">{doc.document_id}</div>
+                    </div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                      {doc.sourceFileName ? `${doc.sourceFileName} · ` : ""}
+                      {doc.content_fingerprint}
+                    </div>
+                  </div>
+                  <Badge variant={doc.status === "revoked" ? "destructive" : "secondary"}>{doc.status ?? "active"}</Badge>
+                </div>
+                {doc.sourceFileType && (
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    {doc.sourceFileType} {doc.sourceFileSize ? `· ${formatFileSize(doc.sourceFileSize)}` : ""}
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {doc.embedded_ai_tags.slice(0, 3).map((tag) => (
+                    <Badge key={tag} variant="outline" className="font-mono text-[10px]">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       </div>
-
-      <Card>
-        <CardHeader><CardTitle>Document</CardTitle><CardDescription>PDF or DOCX, up to 25 MB.</CardDescription></CardHeader>
-        <CardContent className="space-y-6">
-          <label htmlFor="doc-upload" className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 p-8 text-center hover:border-primary/50">
-            <Upload className="h-10 w-10 text-primary" />
-            <span className="mt-4 text-lg font-medium">Choose a document</span>
-            <span className="text-sm text-muted-foreground">Its exact bytes become the verifiable fingerprint.</span>
-            <Input id="doc-upload" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={handleFileChange} />
-          </label>
-
-          {selectedFile && (
-            <motion.div initial={reducedMotion ? false : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 rounded-2xl border border-border p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3"><FileText className="h-5 w-5 text-primary" /><div className="min-w-0"><div className="truncate font-medium">{selectedFile.name}</div><div className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)} · {inferDocumentMimeType(selectedFile)}</div></div></div>
-                <Button type="button" variant="ghost" size="icon" onClick={clearSelectedFile} aria-label="Remove selected file"><X className="h-4 w-4" /></Button>
-              </div>
-
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div className="space-y-4">
-                  <PolicyRow label="Block external AI tools" value={blockAi} onChange={setBlockAi} />
-                  <PolicyRow label="Anyone with the secure link" value={anyoneWithLink} onChange={handleAnyoneWithLinkChange} />
-                  <div className="flex flex-wrap gap-2">{ALL_TAGS.map((tag) => <label key={tag} className="flex items-center gap-2 rounded-md border px-3 py-2"><Checkbox checked={tags.includes(tag)} onCheckedChange={() => toggleTag(tag)} /><span className="font-mono text-xs">{tag}</span></label>)}</div>
-                </div>
-                <div className="space-y-3">
-                  {!anyoneWithLink ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-2"><AccessChoice label="Password" active={accessMethod === "password"} onClick={() => setAccessMethod("password")} /><AccessChoice label="Organization" active={accessMethod === "organization"} onClick={() => setAccessMethod("organization")} /></div>
-                      {accessMethod === "password" && <><div><Label>Access password</Label><Input type="password" value={accessPassword} onChange={(event) => setAccessPassword(event.target.value)} /></div><div><Label>Confirm password</Label><Input type="password" value={accessPasswordConfirm} onChange={(event) => setAccessPasswordConfirm(event.target.value)} /></div></>}
-                    </>
-                  ) : <p className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">The random secure-link token is the access credential.</p>}
-                </div>
-              </div>
-              <Button onClick={() => void signDocument()} disabled={busy} className="w-full sm:w-auto">{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}{busy ? "Signing…" : "Sign document"}</Button>
-            </motion.div>
-          )}
-        </CardContent>
-      </Card>
-
-      {signedDocument && <Card className="border-emerald-500/30"><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-emerald-500" />Signature registered</CardTitle><CardDescription>{signedDocument.fileName}</CardDescription></CardHeader><CardContent className="space-y-4"><div className="rounded-xl border p-3 font-mono text-xs break-all">{signedDocument.fingerprint}</div><Button asChild><Link to={`/app/documents/${signedDocument.documentId}`}>Continue to secure sharing</Link></Button></CardContent></Card>}
     </div>
   );
 }
 
-function ProcessStep({ number, title, description }: { number: string; title: string; description: string }) {
-  return <div className="rounded-xl border bg-muted/20 p-4"><Badge variant="outline">{number}</Badge><div className="mt-3 font-medium">{title}</div><div className="text-xs text-muted-foreground">{description}</div></div>;
-}
-
-function PolicyRow({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
-  return <div className="flex items-center justify-between rounded-xl border p-3"><Label>{label}</Label><Switch checked={value} onCheckedChange={onChange} /></div>;
-}
-
-function AccessChoice({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`rounded-xl border p-3 text-left text-sm ${active ? "border-primary bg-primary/10" : "border-border"}`}>{label}</button>;
+function SignedField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-xl border border-border bg-background/70 p-3">
+      <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-sm ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</div>
+    </div>
+  );
 }

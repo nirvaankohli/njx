@@ -118,7 +118,7 @@ export default function BugDetail() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-7 w-7">
             <ArrowLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="font-mono text-[12px] text-muted-foreground">{bug.tracking_id}</span>
+          <span className="break-all text-[12px] font-medium text-muted-foreground">{bug.tracking_id}</span>
           <StatusBadge status={bug.status} />
           <SeverityBadge severity={bug.severity} />
         </div>

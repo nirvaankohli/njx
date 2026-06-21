@@ -220,7 +220,7 @@ export default function Dashboard() {
                           className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
                           onClick={() => navigate(`/bugs/${bug.id}`)}
                         >
-                          <td className="px-3 py-2 text-muted-foreground font-mono text-[12px]">{bug.tracking_id}</td>
+                          <td className="px-3 py-2 break-all text-[12px] font-medium text-muted-foreground">{bug.tracking_id}</td>
                           <td className="px-3 py-2 font-medium">{bug.title}</td>
                           <td className="px-3 py-2"><StatusBadge status={bug.status} /></td>
                           <td className="px-3 py-2"><SeverityBadge severity={bug.severity} /></td>
@@ -250,7 +250,7 @@ export default function Dashboard() {
                         {columnBugs.map((bug) => (
                           <Link key={bug.id} to={`/bugs/${bug.id}`}>
                             <div className="border border-border rounded-md p-2.5 hover:bg-muted/30 transition-colors cursor-pointer space-y-1.5">
-                              <p className="text-[11px] text-muted-foreground font-mono">{bug.tracking_id}</p>
+                              <p className="break-all text-[11px] font-medium text-muted-foreground">{bug.tracking_id}</p>
                               <p className="text-[13px] font-medium leading-snug line-clamp-2">{bug.title}</p>
                               <div className="flex items-center justify-between">
                                 <SeverityBadge severity={bug.severity} />

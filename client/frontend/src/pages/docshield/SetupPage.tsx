@@ -21,7 +21,7 @@ export default function SetupPage() {
   const [policyTemplates, setPolicyTemplates] = useState(`[
   {
     "policy_id": "no_external_ai",
-    "name": "No External AI",
+    "name": "No External Ai",
     "policy": {
       "external_ai_upload": "blocked",
       "secure_link_required": true,
@@ -84,7 +84,7 @@ export default function SetupPage() {
       setStatus("saved");
       toast.success("Tenant configured", { description: `${response.registered_policy_templates} policy template(s) and ${response.registered_public_keys} public key(s) saved.` });
     } catch (err) {
-      toast.error("Setup failed", { description: err instanceof Error ? err.message : "POST /setup not reachable" });
+      toast.error("Setup failed", { description: err instanceof Error ? err.message : "Post /setup not reachable" });
     } finally {
       setBusy(false);
     }
@@ -115,7 +115,7 @@ export default function SetupPage() {
         <AlertTitle>Signing stays local in dev</AlertTitle>
         <AlertDescription>
           This page generates a local Ed25519 keypair, stores the private key in your browser, and uses the public key
-          for <Badge variant="outline" className="mx-1 font-mono text-[10px]">POST /setup</Badge>. The document and
+          for <Badge variant="outline" className="mx-1 text-[10px] font-medium tracking-[0.08em]">Post /setup</Badge>. The document and
           verify flows reuse the same keypair.
         </AlertDescription>
       </Alert>
@@ -164,7 +164,7 @@ export default function SetupPage() {
                   value={policyTemplates}
                   onChange={(e) => setPolicyTemplates(e.target.value)}
                   rows={10}
-                  className="font-mono text-xs"
+                  className="text-xs"
                 />
               </div>
 
@@ -175,7 +175,7 @@ export default function SetupPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Public key</Label>
-                  <Input value={publicKey} readOnly className="font-mono text-xs" />
+                  <Input value={publicKey} readOnly className="text-xs" />
                 </div>
               </div>
 
@@ -199,19 +199,19 @@ export default function SetupPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Tenant</div>
+              <div className="text-xs tracking-[0.16em] text-muted-foreground">Tenant</div>
               <div className="mt-1 text-sm font-medium">{tenantName}</div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Employee emails</div>
+              <div className="text-xs tracking-[0.16em] text-muted-foreground">Employee emails</div>
               <div className="mt-1 text-sm text-muted-foreground">{adminEmails}</div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Dev key ID</div>
-              <div className="mt-1 text-sm font-mono">{publicKeyId}</div>
+              <div className="text-xs tracking-[0.16em] text-muted-foreground">Dev key ID</div>
+              <div className="mt-1 break-all text-sm font-medium">{publicKeyId}</div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Status</div>
+              <div className="text-xs tracking-[0.16em] text-muted-foreground">Status</div>
               <div className="mt-2 inline-flex items-center gap-2">
                 <Badge variant={status === "saved" ? "default" : "secondary"}>
                   {status === "saved" ? "Saved" : status === "ready" ? "Ready" : "Idle"}

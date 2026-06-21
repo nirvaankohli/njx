@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.security.passwords import hash_password, hash_session_token, new_session_token, verify_password
+
 STATE_PATH = Path(__file__).resolve().parents[2] / ".frontend-state.json"
 STATE_LOCK = threading.Lock()
 
@@ -40,6 +42,8 @@ def _seed_state() -> dict[str, Any]:
         "signed_out": False,
         "current_user": user,
         "company_settings": company,
+        "users": {},
+        "sessions": {},
     }
 
 
@@ -86,61 +90,100 @@ def _user_from_email(email: str, full_name: str | None = None) -> dict[str, Any]
     }
 
 
-def get_frontend_session() -> dict[str, Any]:
-    with STATE_LOCK:
-        state = _load_state()
-        if state.get("signed_out"):
-            return {"user": None, "profile": None, "company_settings": state.get("company_settings")}
-        user = state.get("current_user")
-        if not user:
-            state = _seed_state()
-            _save_state(state)
-            user = state["current_user"]
-        company = state.get("company_settings")
-        if not company or company.get("user_id") != user["id"]:
-            company = _maybe_seed_company(state, user)
-            state["company_settings"] = company
-            _save_state(state)
-        return {
-            "user": user,
-            "profile": user,
-            "company_settings": company,
-        }
+def _public_user(account: dict[str, Any]) -> dict[str, Any]:
+    return {key: account.get(key) for key in ("id", "email", "full_name", "job_title", "avatar_url")}
 
 
-def sign_in_frontend_session(email: str, full_name: str | None = None) -> dict[str, Any]:
+def _create_account(state: dict[str, Any], email: str, password: str, full_name: str | None) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    users = state.setdefault("users", {})
+    if normalized_email in users:
+        raise ValueError("An account with this email already exists")
+    salt, password_hash = hash_password(password)
+    account = {
+        **_user_from_email(normalized_email, full_name),
+        "password_salt": salt,
+        "password_hash": password_hash,
+    }
+    users[normalized_email] = account
+    return account
+
+
+def _authenticate(state: dict[str, Any], email: str, password: str) -> dict[str, Any]:
+    account = state.setdefault("users", {}).get(email.strip().lower())
+    if not account or not verify_password(password, account["password_salt"], account["password_hash"]):
+        raise ValueError("Invalid email or password")
+    return account
+
+
+def _start_session(state: dict[str, Any], account: dict[str, Any]) -> str:
+    token = new_session_token()
+    state.setdefault("sessions", {})[hash_session_token(token)] = account["email"]
+    return token
+
+
+def _session_payload(state: dict[str, Any], account: dict[str, Any] | None) -> dict[str, Any]:
+    if not account:
+        return {"user": None, "profile": None, "company_settings": None}
+    user = _public_user(account)
+    company = state.get("company_settings")
+    if company and company.get("user_id") != user["id"]:
+        company = None
+    return {"user": user, "profile": user, "company_settings": company}
+
+
+def _account_for_session(state: dict[str, Any], token: str | None) -> dict[str, Any] | None:
+    if not token:
+        return None
+    email = state.setdefault("sessions", {}).get(hash_session_token(token))
+    return state.setdefault("users", {}).get(email) if email else None
+
+
+def get_frontend_session(token: str | None) -> dict[str, Any]:
     with STATE_LOCK:
         state = _load_state()
-        user = _user_from_email(email, full_name)
-        state["signed_out"] = False
-        state["current_user"] = user
-        state["company_settings"] = _maybe_seed_company(state, user)
+        return _session_payload(state, _account_for_session(state, token))
+
+
+def sign_up_frontend_session(email: str, password: str, full_name: str | None = None) -> tuple[dict[str, Any], str]:
+    with STATE_LOCK:
+        state = _load_state()
+        account = _create_account(state, email, password, full_name)
+        token = _start_session(state, account)
         _save_state(state)
-        return {
-            "user": user,
-            "profile": user,
-            "company_settings": state["company_settings"],
-        }
+        return _session_payload(state, account), token
 
 
-def sign_out_frontend_session() -> dict[str, Any]:
+def sign_in_frontend_session(email: str, password: str) -> tuple[dict[str, Any], str]:
     with STATE_LOCK:
         state = _load_state()
-        state["signed_out"] = True
-        state["current_user"] = None
+        account = _authenticate(state, email, password)
+        token = _start_session(state, account)
         _save_state(state)
+        return _session_payload(state, account), token
+
+
+def sign_out_frontend_session(token: str | None) -> dict[str, Any]:
+    with STATE_LOCK:
+        state = _load_state()
+        if token:
+            state.setdefault("sessions", {}).pop(hash_session_token(token), None)
+            _save_state(state)
         return {"ok": True}
 
 
-def get_company_settings() -> dict[str, Any] | None:
-    session = get_frontend_session()
+def get_company_settings(token: str | None) -> dict[str, Any] | None:
+    session = get_frontend_session(token)
     return session.get("company_settings")
 
 
-def upsert_company_settings(payload: dict[str, Any]) -> dict[str, Any]:
+def upsert_company_settings(token: str | None, payload: dict[str, Any]) -> dict[str, Any]:
     with STATE_LOCK:
         state = _load_state()
-        user = state.get("current_user") or _seed_state()["current_user"]
+        account = _account_for_session(state, token)
+        if not account:
+            raise ValueError("Authentication required")
+        user = _public_user(account)
         now = _now()
         current = state.get("company_settings") or {}
         company = {
@@ -157,7 +200,5 @@ def upsert_company_settings(payload: dict[str, Any]) -> dict[str, Any]:
             "updated_at": now,
         }
         state["company_settings"] = company
-        state["signed_out"] = False
-        state["current_user"] = user
         _save_state(state)
         return company

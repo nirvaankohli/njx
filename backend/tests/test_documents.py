@@ -43,7 +43,7 @@ def test_register_document_and_append_history_event(client):
             "forwarding": "blocked",
             "public_sharing": "blocked",
         },
-        embedded_ai_tags=["NO_EXTERNAL_AI", "SECURE_LINK_ONLY"],
+        embedded_ai_tags=["NO_EXTERNAL_AI"],
         created_at="2026-06-20T18:30:00Z",
     )
     signed_manifest = signed_manifest_payload(manifest, private_key)
@@ -94,4 +94,3 @@ def test_register_document_and_append_history_event(client):
     assert append_response.status_code == 200
     assert append_response.json()["accepted"] is True
     assert append_response.json()["document_id"] == "doc_7f92ab31"
-

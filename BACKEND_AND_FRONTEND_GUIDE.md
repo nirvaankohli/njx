@@ -132,8 +132,7 @@ Registers a signed document manifest and its initial signed history.
         "public_sharing": "blocked"
       },
       "embedded_ai_tags": [
-        "NO_EXTERNAL_AI",
-        "SECURE_LINK_ONLY"
+        "NO_EXTERNAL_AI"
       ],
       "created_at": "2026-06-20T18:30:00Z"
     },
@@ -283,8 +282,7 @@ Verifies a signed manifest, the history chain, and the content fingerprint again
         "public_sharing": "blocked"
       },
       "embedded_ai_tags": [
-        "NO_EXTERNAL_AI",
-        "SECURE_LINK_ONLY"
+        "NO_EXTERNAL_AI"
       ],
       "created_at": "2026-06-20T18:30:00Z"
     },
@@ -749,4 +747,3 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
 - `POST /access-events` records telemetry
 - `GET /dashboard` returns document and access counts
 - `GET /audit-export` returns the full document audit bundle
-

@@ -56,7 +56,7 @@ export default function AccessEventsPage() {
       toast.success("Access event logged", { description: `Backend accepted ${response.event_id}.` });
     } catch (err) {
       setEvents((current) => [ev, ...current]);
-      toast.message("Saved locally", { description: err instanceof Error ? err.message : "POST /access-events not reachable." });
+      toast.message("Saved locally", { description: err instanceof Error ? err.message : "Post /access-events not reachable." });
     } finally {
       setBusy(false);
       setDocumentId("");
@@ -68,10 +68,6 @@ export default function AccessEventsPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Badge variant="secondary" className="gap-1">
-          <Activity className="h-3.5 w-3.5" />
-          Telemetry
-        </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Access events</h1>
         <p className="text-sm text-muted-foreground">
           Log open, download, and failure events against the active organization so the dashboard and audit export have data.
@@ -90,7 +86,7 @@ export default function AccessEventsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Log an event</CardTitle>
-            <CardDescription>POSTs the same shape the FastAPI service validates.</CardDescription>
+            <CardDescription>Sends the same shape the FastApi service validates.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
