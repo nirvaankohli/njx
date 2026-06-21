@@ -1,16 +1,14 @@
 import { useState } from "react";
-import { FileCheck2, Loader2, ShieldAlert, ShieldCheck, ShieldX, UploadCloud } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { api, type VerifyResult } from "@/lib/docshield-api";
 import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
 import { getDocShieldSession } from "@/lib/docshield-session";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { toast } from "sonner";
+import { FileCheck2, Loader2, ShieldAlert, ShieldCheck, ShieldX, UploadCloud } from "lucide-react";
 import { sha256Hex } from "@/lib/docshield-signing";
+import { toast } from "sonner";
 
 export default function VerifyPage() {
   const session = getDocShieldSession();
@@ -47,7 +45,7 @@ export default function VerifyPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="mx-auto max-w-5xl space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Verify a document</h1>
         <p className="text-sm text-muted-foreground">
@@ -55,49 +53,65 @@ export default function VerifyPage() {
         </p>
       </header>
 
-
-      <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card>
+      <div className="space-y-6">
+        <Card className="w-full overflow-hidden">
           <CardHeader>
-            <CardTitle>Upload the document</CardTitle>
-            <CardDescription>Choose the file whose authenticity you want to check.</CardDescription>
+            <CardTitle className="text-base">Upload the document</CardTitle>
+            <CardDescription>Drop a file or choose one from your device.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-5">
             <form onSubmit={verifyUploadedFile} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="verification-file">Document file</Label>
-                <Input
-                  id="verification-file"
-                  type="file"
-                  onChange={(event) => {
-                    setSelectedFile(event.target.files?.[0] ?? null);
-                    setUploadedFingerprint(null);
-                    setResult(null);
-                  }}
-                />
-              </div>
+              <label
+                htmlFor="verification-file"
+                className="flex min-h-44 w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
+              >
+                <UploadCloud className="h-10 w-10 text-primary" />
+                <div className="mt-4 max-w-md space-y-2">
+                  <div className="text-lg font-medium">Upload a file to verify</div>
+                  <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
+                </div>
+              </label>
+              <Input
+                id="verification-file"
+                type="file"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="hidden"
+                onChange={(event) => {
+                  setSelectedFile(event.target.files?.[0] ?? null);
+                  setUploadedFingerprint(null);
+                  setResult(null);
+                }}
+                disabled={loading}
+              />
               {selectedFile && (
-                <div className="rounded-xl border border-border bg-muted/30 p-4">
-                  <div className="flex items-center gap-3">
-                    <FileCheck2 className="h-5 w-5 text-primary" />
+                <div className="rounded-2xl border border-border bg-background/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{selectedFile.name}</div>
-                      <div className="text-xs text-muted-foreground">{formatBytes(selectedFile.size)}</div>
+                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
+                      <div className="mt-1 truncate text-base font-medium">{selectedFile.name}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">{formatBytes(selectedFile.size)}</div>
                     </div>
+                    <Badge variant="outline" className="gap-1">
+                      <FileCheck2 className="h-3.5 w-3.5" />
+                      Ready
+                    </Badge>
                   </div>
                 </div>
               )}
-              <Button type="submit" disabled={loading || !selectedFile} className="w-full">
-                {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                {!loading && <UploadCloud className="mr-1.5 h-4 w-4" />}
-                {loading ? "Checking signatures…" : "Upload and verify"}
-              </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Choose a file, then run the registry and signature checks.</p>
+                <Button type="submit" disabled={loading || !selectedFile}>
+                  {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  {!loading && <UploadCloud className="mr-1.5 h-4 w-4" />}
+                  {loading ? "Checking signatures…" : "Upload and verify"}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="space-y-1.5">
             <CardTitle>What DocShield checks</CardTitle>
             <CardDescription>The uploaded file is compared with the trusted registry.</CardDescription>
           </CardHeader>
