@@ -18,7 +18,7 @@ import {
 } from "@/lib/docshield-file";
 import {
   canonicalJsonString,
-  ensureDevSigningIdentity,
+  getDevSigningIdentity,
   sha256Hex,
   signCanonicalPayload,
   toBackendIsoString,
@@ -136,9 +136,9 @@ export default function DocumentsPage() {
     setBusy(true);
 
     try {
-      await ensureDevSigningIdentity();
+      const identity = await getDevSigningIdentity();
       const tenantId = session.tenantId;
-      const issuerKeyId = session.issuerKeyId;
+      const issuerKeyId = identity.keyId;
       const actorOrg = session.tenantName || "Employee";
       const fileType = inferDocumentMimeType(selectedFile);
       const fingerprint = await fingerprintDocumentFile(selectedFile);
@@ -155,9 +155,9 @@ export default function DocumentsPage() {
         content_fingerprint: fingerprint,
         policy: {
           external_ai_upload: blockAi ? "blocked" : "allowed",
-          secure_link_required: !accessAnyoneWithLink,
+          secure_link_required: true,
           forwarding: "blocked",
-          public_sharing: "blocked",
+          public_sharing: accessAnyoneWithLink ? "allowed" : "blocked",
         } as const,
         embedded_ai_tags: tags,
         created_at: createdAt,
@@ -171,7 +171,7 @@ export default function DocumentsPage() {
       };
 
       const initialEventBase = {
-        event_id: "evt_issued_001",
+        event_id: `evt_issued_${crypto.randomUUID()}`,
         document_id: manifest.document_id,
         event: "issued" as const,
         actor_org: actorOrg,
@@ -179,17 +179,28 @@ export default function DocumentsPage() {
         timestamp: createdAt,
         previous_event_hash: null,
         manifest_hash: manifestHash,
-        payload: {},
+        payload: { file_name: selectedFile.name },
       };
       const initialEvent: SignedHistoryEventPayload = {
         ...initialEventBase,
         signature: await signCanonicalPayload(initialEventBase),
       };
 
+      await api.setup({
+        tenant: {
+          tenant_id: tenantId,
+          org_name: session.tenantName,
+          domains: session.domains,
+          admin_emails: session.adminEmails,
+        },
+        policy_templates: [],
+        public_keys: [{ key_id: issuerKeyId, public_key_b64: identity.publicKeyB64 }],
+      });
       const response = await api.registerDocument({
         signed_manifest: signedManifest,
         initial_history: [initialEvent],
       });
+      await api.uploadDocumentContent(documentId, selectedFile);
 
       const nextDocument: LocalDocument = {
         document_id: manifest.document_id,
@@ -230,6 +241,7 @@ export default function DocumentsPage() {
           accessAnyoneWithLink,
           accessMethod,
           accessPasswordHash,
+          shareLink: null,
         },
       });
       setSignedDocument({
