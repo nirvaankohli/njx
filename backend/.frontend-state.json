@@ -2,15 +2,15 @@
   "company_settings": {
     "address": null,
     "company_logo_url": null,
-    "company_name": "bedi.rajveer09",
+    "company_name": "Acme Inc",
     "company_size": null,
     "company_website": null,
     "created_at": "2026-06-20T22:48:11.603673+00:00",
     "id": "company-6ba99b97-868c-55aa-a026-c0352e61bf33",
     "industry": null,
     "phone": null,
-    "updated_at": "2026-06-20T22:48:11.603676+00:00",
-    "user_id": "6ba99b97-868c-55aa-a026-c0352e61bf33"
+    "updated_at": "2026-06-21T01:10:27.563172+00:00",
+    "user_id": "bb2f8a72-4c46-57f0-acef-22ca560e7892"
   },
   "current_user": {
     "avatar_url": null,
@@ -19,5 +19,19 @@
     "id": "6ba99b97-868c-55aa-a026-c0352e61bf33",
     "job_title": "Security Lead"
   },
-  "signed_out": false
+  "sessions": {
+    "1eee20dba65ee99ec8a43c45fdfa063477084968f6336019f26d58edd98b030d": "nirvaan.kohli@gmail.com"
+  },
+  "signed_out": false,
+  "users": {
+    "nirvaan.kohli@gmail.com": {
+      "avatar_url": null,
+      "email": "nirvaan.kohli@gmail.com",
+      "full_name": "Nirvaan Kohli",
+      "id": "bb2f8a72-4c46-57f0-acef-22ca560e7892",
+      "job_title": "Security Lead",
+      "password_hash": "77325e22b406bbf8dc6fe35bc871eff835824fbc2d2c163fa31b81f6ef7a40d7",
+      "password_salt": "a8888d5c9f836f6ef7b05c75033083d3"
+    }
+  }
 }

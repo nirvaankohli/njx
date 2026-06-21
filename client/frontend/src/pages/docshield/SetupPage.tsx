@@ -94,14 +94,6 @@ export default function SetupPage() {
     <div className="space-y-6 max-w-5xl">
       <header className="space-y-2">
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="gap-1">
-            <BadgeCheck className="h-3.5 w-3.5" />
-            Dev setup
-          </Badge>
-          <Badge variant="outline" className="gap-1">
-            <KeyRound className="h-3.5 w-3.5" />
-            Local Ed25519 keypair
-          </Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Organization setup</h1>
         <p className="text-sm text-muted-foreground">
