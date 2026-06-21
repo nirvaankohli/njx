@@ -59,10 +59,6 @@ export default function ReferencePage() {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <Badge variant="secondary" className="gap-1">
-          <Code2 className="h-3.5 w-3.5" />
-          Api reference
-        </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Backend contract</h1>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
           The frontend calls the FastApi backend through a proxy-aware client. Set the base URL with{" "}

@@ -264,14 +264,6 @@ export default function DocumentsPage() {
     <div className="space-y-8">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="gap-1">
-            <BadgeCheck className="h-3.5 w-3.5" />
-            Employee upload
-          </Badge>
-          <Badge variant="outline" className="gap-1">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Private access
-          </Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Upload a file to be encrypted or signed.</h1>
         <p className="text-sm text-muted-foreground">

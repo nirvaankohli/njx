@@ -68,10 +68,6 @@ export default function AccessEventsPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Badge variant="secondary" className="gap-1">
-          <Activity className="h-3.5 w-3.5" />
-          Telemetry
-        </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Access events</h1>
         <p className="text-sm text-muted-foreground">
           Log open, download, and failure events against the active organization so the dashboard and audit export have data.

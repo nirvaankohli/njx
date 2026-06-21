@@ -49,10 +49,6 @@ export default function VerifyPage() {
   return (
     <div className="space-y-6 max-w-5xl">
       <header className="space-y-2">
-        <Badge variant="secondary" className="gap-1">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Ed25519 authenticity check
-        </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Verify a document</h1>
         <p className="text-sm text-muted-foreground">
           Select a file to confirm that its exact contents match a document signed by a trusted issuer key.
