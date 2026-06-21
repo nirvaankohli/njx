@@ -153,6 +153,8 @@ export type VerifyResult = {
     | "unknown_document"
     | "invalid_signature";
   document_id: string;
+  tenant_id: string | null;
+  tenant_org_name: string | null;
   issuer_key_id: string | null;
   fingerprint_match: boolean;
   manifest_signature_valid: boolean;

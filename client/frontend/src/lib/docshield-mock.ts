@@ -188,6 +188,8 @@ export function mockVerify(documentId: string, fingerprint: string): VerifyResul
   return {
     status: matches ? "valid" : doc ? "tampered" : "unknown_document",
     document_id: documentId,
+    tenant_id: doc?.tenant_id ?? null,
+    tenant_org_name: doc?.tenant_id === "tenant_acme" ? "Acme Pharma" : null,
     fingerprint_match: matches,
     manifest_signature_valid: !!doc,
     signature_chain_valid: !!doc && matches,

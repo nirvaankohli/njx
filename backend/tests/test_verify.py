@@ -101,6 +101,8 @@ def test_verify_valid_document_and_policy_block(client):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "valid"
+    assert body["tenant_id"] == "tenant_acme"
+    assert body["tenant_org_name"] == "Acme Pharma"
     assert body["fingerprint_match"] is True
     assert body["manifest_signature_valid"] is True
     assert body["signature_chain_valid"] is True
@@ -226,6 +228,8 @@ def test_verify_signed_manifest_for_pdf_fixture(client):
     upload_body = upload_response.json()
     assert upload_body["status"] == "valid"
     assert upload_body["document_id"] == "doc_invoice_pdf"
+    assert upload_body["tenant_id"] == "tenant_acme"
+    assert upload_body["tenant_org_name"] == "Acme Pharma"
     assert upload_body["issuer_key_id"] == "key_acme_primary"
     assert upload_body["fingerprint_match"] is True
     assert upload_body["manifest_signature_valid"] is True
@@ -242,6 +246,8 @@ def test_verify_uploaded_file_rejects_unregistered_bytes(client):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "unknown_document"
+    assert body["tenant_id"] is None
+    assert body["tenant_org_name"] is None
     assert body["manifest_signature_valid"] is False
     assert body["policy_decision"]["reason"] == "FINGERPRINT_NOT_REGISTERED"
 

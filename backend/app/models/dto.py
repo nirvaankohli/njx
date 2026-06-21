@@ -111,8 +111,10 @@ class VerifyResult(BaseModel):
         "unverifiable_rebuilt_copy",
         "unknown_document",
         "invalid_signature",
-    ]
+    ] 
     document_id: str
+    tenant_id: str | None = None
+    tenant_org_name: str | None = None
     issuer_key_id: str | None = None
     fingerprint_match: bool
     manifest_signature_valid: bool

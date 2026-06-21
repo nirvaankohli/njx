@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.db import DocumentORM, SignatureHistoryEventORM, VerificationLogORM
+from app.models.db import DocumentORM, SignatureHistoryEventORM, TenantORM, VerificationLogORM
 from app.models.dto import (
     ManifestClaims,
     PolicyDecision,
@@ -125,9 +125,12 @@ def verify_history_chain(
 def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
     stored_doc = session.get(DocumentORM, request.document_id)
     if stored_doc is None:
+        tenant_id = request.signed_manifest.manifest.tenant_id
         return VerifyResult(
             status="unknown_document",
             document_id=request.document_id,
+            tenant_id=tenant_id,
+            tenant_org_name=_tenant_org_name(session, tenant_id),
             fingerprint_match=False,
             manifest_signature_valid=False,
             signature_chain_valid=False,
@@ -145,6 +148,8 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
             VerifyResult(
                 status="invalid_signature",
                 document_id=manifest.document_id,
+                tenant_id=stored_doc.tenant_id,
+                tenant_org_name=_tenant_org_name(session, stored_doc.tenant_id),
                 issuer_key_id=manifest.issuer_key_id,
                 fingerprint_match=False,
                 manifest_signature_valid=False,
@@ -159,6 +164,8 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
         result = VerifyResult(
             status="revoked",
             document_id=manifest.document_id,
+            tenant_id=stored_doc.tenant_id,
+            tenant_org_name=_tenant_org_name(session, stored_doc.tenant_id),
             issuer_key_id=manifest.issuer_key_id,
             fingerprint_match=False,
             manifest_signature_valid=False,
@@ -174,6 +181,8 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
         result = VerifyResult(
             status="invalid_signature",
             document_id=manifest.document_id,
+            tenant_id=stored_doc.tenant_id,
+            tenant_org_name=_tenant_org_name(session, stored_doc.tenant_id),
             issuer_key_id=manifest.issuer_key_id,
             fingerprint_match=False,
             manifest_signature_valid=False,
@@ -189,6 +198,8 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
         result = VerifyResult(
             status="tampered",
             document_id=manifest.document_id,
+            tenant_id=stored_doc.tenant_id,
+            tenant_org_name=_tenant_org_name(session, stored_doc.tenant_id),
             issuer_key_id=manifest.issuer_key_id,
             fingerprint_match=False,
             manifest_signature_valid=True,
@@ -237,6 +248,8 @@ def verify_passport(session: Session, request: VerifyRequest) -> VerifyResult:
     result = VerifyResult(
         status=status,
         document_id=manifest.document_id,
+        tenant_id=stored_doc.tenant_id,
+        tenant_org_name=_tenant_org_name(session, stored_doc.tenant_id),
         issuer_key_id=manifest.issuer_key_id,
         fingerprint_match=fingerprint_match,
         manifest_signature_valid=True,
@@ -264,6 +277,8 @@ def verify_registered_fingerprint(
         return VerifyResult(
             status="unknown_document",
             document_id="unknown",
+            tenant_id=None,
+            tenant_org_name=None,
             fingerprint_match=False,
             manifest_signature_valid=False,
             signature_chain_valid=False,
@@ -311,6 +326,11 @@ def verify_registered_fingerprint(
             usage_context=usage_context,
         ),
     )
+
+
+def _tenant_org_name(session: Session, tenant_id: str) -> str | None:
+    tenant = session.get(TenantORM, tenant_id)
+    return tenant.org_name if tenant else None
 
 
 def _persist_verification(session: Session, document: DocumentORM, result: VerifyResult, usage_context: dict) -> VerifyResult:

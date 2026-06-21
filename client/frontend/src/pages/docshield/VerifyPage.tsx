@@ -44,17 +44,36 @@ export default function VerifyPage() {
     }
   }
 
+  const tenantMatches = !!result?.tenant_id && result.tenant_id === session.tenantId;
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Verify a document</h1>
-        <p className="text-sm text-muted-foreground">
-          Select a file to confirm that its exact contents match a document signed by a trusted issuer key.
-        </p>
+    <div className="mx-auto max-w-6xl space-y-8">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-2xl space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
+              Verification
+            </Badge>
+            <Badge variant="secondary" className="text-[10px] font-medium tracking-[0.08em]">
+              Workspace: {session.tenantName}
+            </Badge>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Verify a document</h1>
+          <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+            Upload a file to compare its fingerprint, manifest signature, and history chain. The result shows which
+            tenant registered the file, so cross-tenant documents are easy to spot.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-muted/20 px-4 py-3">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Current workspace</div>
+          <div className="mt-1 text-sm font-medium">{session.tenantName}</div>
+          <div className="mt-1 font-mono text-xs text-muted-foreground">{session.tenantId}</div>
+        </div>
       </header>
 
-      <div className="space-y-6">
-        <Card className="w-full overflow-hidden">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="text-base">Upload the document</CardTitle>
             <CardDescription>Drop a file or choose one from your device.</CardDescription>
@@ -63,12 +82,14 @@ export default function VerifyPage() {
             <form onSubmit={verifyUploadedFile} className="space-y-5">
               <label
                 htmlFor="verification-file"
-                className="flex min-h-44 w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
+                className="flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/35"
               >
-                <UploadCloud className="h-10 w-10 text-primary" />
-                <div className="mt-4 max-w-md space-y-2">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-background shadow-sm">
+                  <UploadCloud className="h-6 w-6 text-primary" />
+                </div>
+                <div className="mt-5 max-w-md space-y-2">
                   <div className="text-lg font-medium">Upload a file to verify</div>
-                  <p className="text-sm text-muted-foreground">PDF or DOCX only.</p>
+                  <p className="text-sm text-muted-foreground">PDF or DOCX only, up to 25 MB.</p>
                 </div>
               </label>
               <Input
@@ -83,8 +104,9 @@ export default function VerifyPage() {
                 }}
                 disabled={loading}
               />
+
               {selectedFile && (
-                <div className="rounded-2xl border border-border bg-background/70 p-4">
+                <div className="rounded-2xl border border-border bg-background/80 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Selected file</div>
@@ -98,8 +120,11 @@ export default function VerifyPage() {
                   </div>
                 </div>
               )}
+
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">Choose a file, then run the registry and signature checks.</p>
+                <p className="text-xs text-muted-foreground">
+                  The backend checks the fingerprint, manifest signature, and history chain for the registered tenant.
+                </p>
                 <Button type="submit" disabled={loading || !selectedFile}>
                   {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                   {!loading && <UploadCloud className="mr-1.5 h-4 w-4" />}
@@ -110,25 +135,85 @@ export default function VerifyPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="space-y-1.5">
-            <CardTitle>What DocShield checks</CardTitle>
-            <CardDescription>The uploaded file is compared with the trusted registry.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <Row label="Tenant" value={session.tenantName} />
-            <Row label="File fingerprint" value={uploadedFingerprint ?? "Calculated after upload"} mono />
-            <Row label="Registered document" value={result?.document_id ?? "Pending verification"} mono />
-            <Row label="Issuer key" value={result?.issuer_key_id ?? "Pending verification"} mono />
-            <div className="rounded-xl border border-border bg-muted/20 p-4 text-xs text-muted-foreground">
-              The backend validates the exact SHA-256 fingerprint, Ed25519 manifest signature, issuer key status, and every
-              signature in the document history chain.
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        {result ? (
+          <Card className="overflow-hidden">
+            <CardHeader className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <ResultToneBadge result={result} />
+                <Badge variant={tenantMatches ? "secondary" : "outline"} className="text-[10px] font-medium tracking-[0.08em]">
+                  {tenantMatches ? "Same tenant" : "Different tenant"}
+                </Badge>
+              </div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ResultIcon result={result} className={`h-5 w-5 ${resultToneClass(result)}`} />
+                {formatStatus(result.status)}
+              </CardTitle>
+              <CardDescription>{result.document_id}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InfoRow label="Source tenant" value={result.tenant_org_name ?? "Unknown tenant"} />
+                <InfoRow label="Tenant ID" value={result.tenant_id ?? "Unavailable"} mono />
+                <InfoRow label="Current workspace" value={session.tenantName} />
+                <InfoRow
+                  label="Workspace match"
+                  value={tenantMatches ? "Matches current workspace" : "Different workspace"}
+                />
+                <InfoRow label="Uploaded fingerprint" value={uploadedFingerprint ?? "Calculated on verify"} mono />
+                <InfoRow label="Issuer key" value={result.issuer_key_id ?? "Unavailable"} mono />
+              </div>
 
-      {result && <VerifyResultCard result={result} />}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <ResultBadge label="Fingerprint match" value={result.fingerprint_match} />
+                <ResultBadge label="Manifest signature" value={result.manifest_signature_valid} />
+                <ResultBadge label="History chain" value={result.signature_chain_valid} />
+                <ResultBadge label="Revoked" value={result.revoked} />
+              </div>
+
+              <div className="rounded-2xl border border-border bg-muted/20 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Policy decision</div>
+                    <div className="mt-1 text-sm font-medium">{result.policy_decision.operation}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {result.policy_decision.allowed ? "Allowed" : "Blocked"}
+                    </div>
+                  </div>
+                  <Badge variant={result.policy_decision.allowed ? "default" : "destructive"}>
+                    {result.policy_decision.reason ?? "No reason"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">Reasons</div>
+                <div className="flex flex-wrap gap-2">
+                  {result.reasons.map((reason) => (
+                    <Badge key={reason} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
+                      {humanizeDocShieldLabel(reason)}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="overflow-hidden border-dashed">
+            <CardContent className="flex min-h-full flex-col justify-center px-6 py-10">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-muted/20">
+                <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div className="mt-4 space-y-2">
+                <h2 className="text-base font-medium">Verification results will appear here</h2>
+                <p className="max-w-md text-sm leading-6 text-muted-foreground">
+                  Once a file is checked, we will show the source tenant, document ID, signature checks, and policy
+                  decision in one place.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
@@ -139,68 +224,41 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function VerifyResultCard({ result }: { result: VerifyResult }) {
-  const Icon = result.revoked ? ShieldX : result.status === "valid" ? ShieldCheck : ShieldAlert;
+function formatStatus(status: VerifyResult["status"]) {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function resultToneClass(result: VerifyResult) {
+  return result.revoked || result.status === "tampered"
+    ? "text-destructive"
+    : result.status === "valid"
+      ? "text-emerald-500"
+      : "text-muted-foreground";
+}
+
+function ResultIcon({ result, className }: { result: VerifyResult; className?: string }) {
+  const Icon = result.revoked || result.status === "tampered" ? ShieldX : result.status === "valid" ? ShieldCheck : ShieldAlert;
+  return <Icon className={className} />;
+}
+
+function ResultToneBadge({ result }: { result: VerifyResult }) {
   const tone =
     result.revoked || result.status === "tampered"
-      ? "text-destructive"
+      ? "destructive"
       : result.status === "valid"
-        ? "text-emerald-500"
-        : "text-muted-foreground";
+        ? "default"
+        : "secondary";
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Icon className={`h-5 w-5 ${tone}`} />
-          {result.status.replace("_", " ")}
-        </CardTitle>
-        <CardDescription>{result.document_id}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ResultBadge label="Fingerprint match" value={result.fingerprint_match} />
-          <ResultBadge label="Manifest signature" value={result.manifest_signature_valid} />
-          <ResultBadge label="History chain" value={result.signature_chain_valid} />
-          <ResultBadge label="Revoked" value={result.revoked} />
-        </div>
-
-        <div>
-          <div className="mb-2 text-xs tracking-[0.16em] text-muted-foreground">Policy decision</div>
-          <div className="rounded-xl border border-border bg-muted/30 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">{result.policy_decision.operation}</div>
-                <div className="text-xs text-muted-foreground">
-                  {result.policy_decision.allowed ? "Allowed" : "Blocked"}
-                </div>
-              </div>
-              <Badge variant={result.policy_decision.allowed ? "default" : "destructive"}>
-                {result.policy_decision.reason ?? "No reason"}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-2 text-xs tracking-[0.16em] text-muted-foreground">Reasons</div>
-          <div className="flex flex-wrap gap-2">
-            {result.reasons.map((reason) => (
-              <Badge key={reason} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
-                {humanizeDocShieldLabel(reason)}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+  return <Badge variant={tone as "default" | "secondary" | "destructive"}>{formatStatus(result.status)}</Badge>;
 }
 
 function ResultBadge({ label, value }: { label: string; value: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-background p-4">
-      <div className="text-xs tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className={`mt-1 text-sm font-medium ${value ? "text-emerald-500" : "text-destructive"}`}>
         {value ? "Pass" : "Fail"}
       </div>
@@ -208,11 +266,11 @@ function ResultBadge({ label, value }: { label: string; value: boolean }) {
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div>
-      <div className="text-xs tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-xs text-foreground ${mono ? "break-all font-mono" : ""}`}>{value}</div>
+    <div className="rounded-xl border border-border bg-background p-4">
+      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-sm text-foreground ${mono ? "break-all font-mono text-xs" : ""}`}>{value}</div>
     </div>
   );
 }
