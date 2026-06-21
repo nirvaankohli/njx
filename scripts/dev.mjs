@@ -73,6 +73,5 @@ process.on("SIGTERM", () => {
   process.exit(143);
 });
 
-start("api", "python3", ["-m", "uvicorn", "app.main:app", "--reload", "--app-dir", "backend", "--host", "127.0.0.1", "--port", "8000"], process.cwd());
+start("api", "uv", ["run", "--project", "backend", "uvicorn", "app.main:app", "--reload", "--app-dir", "backend", "--host", "127.0.0.1", "--port", "8000"], process.cwd());
 start("web", "npm", ["--prefix", "client/frontend", "run", "dev"], process.cwd());
-
