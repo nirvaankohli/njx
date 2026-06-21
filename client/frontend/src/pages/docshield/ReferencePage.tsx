@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { buildUrl } from "@/lib/docshield-api";
+import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
 
 const endpoints = [
   {
@@ -60,13 +61,13 @@ export default function ReferencePage() {
       <header className="space-y-2">
         <Badge variant="secondary" className="gap-1">
           <Code2 className="h-3.5 w-3.5" />
-          API reference
+          Api reference
         </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Backend contract</h1>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-          The frontend calls the FastAPI backend through a proxy-aware client. Set the base URL with{" "}
-          <Badge variant="outline" className="mx-1 font-mono text-[10px]">
-            VITE_DOCSHIELD_API_BASE
+          The frontend calls the FastApi backend through a proxy-aware client. Set the base URL with{" "}
+          <Badge variant="outline" className="mx-1 text-[10px] font-medium tracking-[0.08em]">
+            Base URL
           </Badge>
           or rely on the default Vite proxy to `127.0.0.1:8000`.
         </p>
@@ -78,7 +79,7 @@ export default function ReferencePage() {
           <CardDescription>Current request builder and proxy target.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="font-mono text-[10px]">
+          <Badge variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
             {buildUrl("/setup")}
           </Badge>
           <Button asChild variant="outline" size="sm">
@@ -96,11 +97,11 @@ export default function ReferencePage() {
           <Card key={endpoint.path}>
             <CardHeader>
               <div className="flex flex-wrap items-center gap-3">
-                <Badge variant="outline" className={`gap-1 font-mono text-[10px] ${methodTone[endpoint.method]}`}>
+                <Badge variant="outline" className={`gap-1 text-[10px] font-medium tracking-[0.08em] ${methodTone[endpoint.method]}`}>
                   <endpoint.icon className="h-3.5 w-3.5" />
-                  {endpoint.method}
+                  {humanizeDocShieldLabel(endpoint.method)}
                 </Badge>
-                <Badge variant="secondary" className="font-mono text-[10px]">
+                <Badge variant="secondary" className="text-[10px] font-medium tracking-[0.08em]">
                   {endpoint.path}
                 </Badge>
               </div>
@@ -109,10 +110,10 @@ export default function ReferencePage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Key fields</div>
+                <div className="text-xs tracking-[0.16em] text-muted-foreground">Key fields</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {endpoint.details.map((detail) => (
-                    <Badge key={detail} variant="outline" className="font-mono text-[10px]">
+                    <Badge key={detail} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
                       {detail}
                     </Badge>
                   ))}
@@ -128,9 +129,9 @@ export default function ReferencePage() {
           <AccordionTrigger>Routing notes</AccordionTrigger>
           <AccordionContent className="space-y-3 text-sm text-muted-foreground">
             <p>
-              The Vite dev server proxies <Badge variant="outline" className="mx-1 font-mono text-[10px]">/api</Badge>{" "}
-              to the local FastAPI server and strips the prefix, so calls like <span className="font-mono">/api/setup</span>{" "}
-              arrive at <span className="font-mono">/setup</span>.
+              The Vite dev server proxies <Badge variant="outline" className="mx-1 text-[10px] font-medium tracking-[0.08em]">/api</Badge>{" "}
+              to the local FastApi server and strips the prefix, so calls like <span className="font-medium">/api/setup</span>{" "}
+              arrive at <span className="font-medium">/setup</span>.
             </p>
             <p>
               Dashboard and audit export require an organization ID, and audit export also needs a document ID. The UI

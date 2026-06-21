@@ -83,8 +83,8 @@ export default function DashboardPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Showing sample data</AlertTitle>
           <AlertDescription>
-            The backend was unreachable, so the page fell back to mock data. Set `VITE_DOCSHIELD_API_BASE` or run the
-            local FastAPI server on `127.0.0.1:8000`.
+            The backend was unreachable, so the page fell back to mock data. Set the backend base URL or run the
+            local FastApi server on `127.0.0.1:8000`.
           </AlertDescription>
         </Alert>
       )}

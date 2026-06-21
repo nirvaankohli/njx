@@ -130,7 +130,7 @@ export default function BugList() {
                     className="border-b border-border hover:bg-muted/30 cursor-pointer transition-colors"
                     onClick={() => navigate(`/bugs/${bug.id}`)}
                   >
-                    <td className="px-4 md:px-6 py-2 text-muted-foreground font-mono text-[12px]">{bug.tracking_id}</td>
+                    <td className="px-4 md:px-6 py-2 break-all text-[12px] font-medium text-muted-foreground">{bug.tracking_id}</td>
                     <td className="px-3 py-2 font-medium">{bug.title}</td>
                     <td className="px-3 py-2"><StatusBadge status={bug.status} /></td>
                     <td className="px-3 py-2"><SeverityBadge severity={bug.severity} /></td>
