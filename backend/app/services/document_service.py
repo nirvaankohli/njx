@@ -24,6 +24,7 @@ from app.models.dto import (
     EventAppendResponse,
     SignatureHistoryEvent,
 )
+from app.services.blob_storage_service import delete_encrypted_blob
 from app.services.audit_service import log_action
 from app.services.errors import ConflictError, NotFoundError
 from app.services.signing_service import HistoryChainResult, event_hash, get_public_key, manifest_hash, verify_event_signature, verify_manifest_signature
@@ -118,6 +119,8 @@ def delete_document(session: Session, document_id: str, tenant_id: str) -> None:
         document_id=document_id,
         details={"file_name": content.file_name if content else None},
     )
+    if content is not None and content.storage_key:
+        delete_encrypted_blob(content.storage_key)
     for model in (
         VerificationLogORM,
         AnomalyModelStateORM,

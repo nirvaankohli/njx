@@ -91,8 +91,9 @@ class DocumentContentORM(Base):
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.document_id"), primary_key=True)
     file_name: Mapped[str] = mapped_column(String, nullable=False)
     content_type: Mapped[str] = mapped_column(String, nullable=False)
-    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    storage_key: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    encrypted_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 

@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+from sqlalchemy import inspect
+
+from app.db.session import SessionLocal
+from app.models.db import DocumentContentORM
 from app.models.dto import ManifestClaims, SignatureHistoryEvent
 from app.security.hashes import sha256_hex
 from app.services.embedded_document_service import TRAILER_MAGIC
@@ -68,6 +75,17 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
         headers={"X-File-Name": "agreement.pdf", "Content-Type": "application/pdf"},
     )
     assert upload.status_code == 204
+
+    with SessionLocal() as session:
+        row = session.get(DocumentContentORM, document_id)
+        assert row is not None
+        assert row.storage_key == f"{document_id}.blob"
+        assert row.size_bytes == len(content)
+        assert "content" not in {column["name"] for column in inspect(session.get_bind()).get_columns("document_contents")}
+        blob_path = Path(os.environ["DOCSHIELD_BLOB_STORAGE_DIR"]) / row.storage_key
+        stored_bytes = blob_path.read_bytes()
+        assert stored_bytes != content
+        assert content not in stored_bytes
 
     create_link = client.post(
         f"/documents/{document_id}/share-links",
@@ -160,3 +178,39 @@ def test_content_upload_rejects_bytes_that_do_not_match_signed_hash(client):
     )
     assert response.status_code == 409
     assert "do not match" in response.json()["detail"]
+
+
+def test_missing_or_corrupt_blob_is_not_served(client):
+    document_id, content = _register_original(client)
+    client.put(
+        f"/documents/{document_id}/content",
+        content=content,
+        headers={"X-File-Name": "agreement.pdf", "Content-Type": "application/pdf"},
+    )
+    token = client.post(f"/documents/{document_id}/share-links", json={"access_method": "link"}).json()["token"]
+
+    with SessionLocal() as session:
+        row = session.get(DocumentContentORM, document_id)
+        assert row is not None
+        blob_path = Path(os.environ["DOCSHIELD_BLOB_STORAGE_DIR"]) / row.storage_key
+
+    blob_path.unlink()
+    missing = client.get(f"/shares/{token}/download")
+    assert missing.status_code == 404
+
+    client.put(
+        f"/documents/{document_id}/content",
+        content=content,
+        headers={"X-File-Name": "agreement.pdf", "Content-Type": "application/pdf"},
+    )
+    with SessionLocal() as session:
+        row = session.get(DocumentContentORM, document_id)
+        assert row is not None
+        blob_path = Path(os.environ["DOCSHIELD_BLOB_STORAGE_DIR"]) / row.storage_key
+    payload = bytearray(blob_path.read_bytes())
+    payload[-1] ^= 1
+    blob_path.write_bytes(bytes(payload))
+
+    corrupt = client.get(f"/shares/{token}/download")
+    assert corrupt.status_code == 400
+    assert "altered" in corrupt.json()["detail"].lower()

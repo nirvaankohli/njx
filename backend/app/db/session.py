@@ -23,6 +23,7 @@ def init_db() -> None:
     from app.models import db  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _migrate_document_content_table()
     columns = {column["name"] for column in inspect(engine).get_columns("access_events")}
     if "browser" not in columns:
         with engine.begin() as connection:
@@ -30,3 +31,12 @@ def init_db() -> None:
     if "ip_address" not in columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE access_events ADD COLUMN ip_address VARCHAR"))
+
+
+def _migrate_document_content_table() -> None:
+    columns = {column["name"] for column in inspect(engine).get_columns("document_contents")}
+    with engine.begin() as connection:
+        if "storage_key" not in columns:
+            connection.execute(text("ALTER TABLE document_contents ADD COLUMN storage_key VARCHAR"))
+        if "encrypted_size_bytes" not in columns:
+            connection.execute(text("ALTER TABLE document_contents ADD COLUMN encrypted_size_bytes INTEGER"))

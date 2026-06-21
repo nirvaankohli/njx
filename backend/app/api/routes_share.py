@@ -11,6 +11,7 @@ from app.services.share_service import (
     authorize_share,
     create_share_link,
     describe_share,
+    load_shared_document_content,
     record_share_access,
     resolve_share_link,
     share_analytics,
@@ -80,6 +81,7 @@ def download_shared_document(
 ) -> Response:
     link, _, content = resolve_share_link(db, token)
     authorize_share(link, password_hash=x_share_password_hash, tenant_id=x_tenant_id)
+    protected_content = load_shared_document_content(db, content.document_id)
     record_share_access(
         db,
         link=link,
@@ -90,7 +92,7 @@ def download_shared_document(
         user_agent=request.headers.get("user-agent"),
     )
     return Response(
-        content=content.content,
+        content=protected_content,
         media_type=content.content_type,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(content.file_name)}"},
     )

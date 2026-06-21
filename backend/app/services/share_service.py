@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.db import AccessEventORM, DocumentContentORM, DocumentORM, ShareLinkORM
 from app.models.dto import AccessEvent, ShareAnalyticsResponse, ShareDocumentResponse, ShareLinkCreateRequest, ShareLinkResponse
 from app.security.hashes import sha256_hex
+from app.services.blob_storage_service import load_encrypted_blob, store_encrypted_blob
 from app.services.embedded_document_service import embed_encrypted_passport
 from app.services.errors import ConflictError, DocShieldError, NotFoundError
 from app.services.telemetry_service import record_access_event
@@ -26,14 +27,24 @@ def store_document_content(
     if document is None:
         raise NotFoundError(f"Document {document_id} not found")
     protected_content = embed_encrypted_passport(session, document_id, content)
+    storage_key = f"{document_id}.blob"
+    store_encrypted_blob(storage_key, protected_content)
     row = session.get(DocumentContentORM, document_id)
     if row is None:
-        row = DocumentContentORM(document_id=document_id, file_name=file_name, content_type=content_type, content=protected_content, size_bytes=len(protected_content))
+        row = DocumentContentORM(
+            document_id=document_id,
+            file_name=file_name,
+            content_type=content_type,
+            storage_key=storage_key,
+            size_bytes=len(content),
+            encrypted_size_bytes=len(protected_content),
+        )
     else:
         row.file_name = file_name
         row.content_type = content_type
-        row.content = protected_content
-        row.size_bytes = len(protected_content)
+        row.storage_key = storage_key
+        row.size_bytes = len(content)
+        row.encrypted_size_bytes = len(protected_content)
     session.add(row)
     session.commit()
 
@@ -42,7 +53,8 @@ def create_share_link(session: Session, document_id: str, request: ShareLinkCrea
     document = session.get(DocumentORM, document_id)
     if document is None:
         raise NotFoundError(f"Document {document_id} not found")
-    if session.get(DocumentContentORM, document_id) is None:
+    content = session.get(DocumentContentORM, document_id)
+    if content is None or not content.storage_key:
         raise ConflictError("Upload the signed document content before creating a share link")
     if request.access_method == "password" and not request.password_hash:
         raise ConflictError("A password hash is required for password-protected links")
@@ -78,9 +90,16 @@ def resolve_share_link(session: Session, token: str) -> tuple[ShareLinkORM, Docu
         raise DocShieldError("Secure link has expired", status_code=410)
     document = session.get(DocumentORM, link.document_id)
     content = session.get(DocumentContentORM, link.document_id)
-    if document is None or content is None:
+    if document is None or content is None or not content.storage_key:
         raise NotFoundError("Shared document is unavailable")
     return link, document, content
+
+
+def load_shared_document_content(session: Session, document_id: str) -> bytes:
+    content = session.get(DocumentContentORM, document_id)
+    if content is None or not content.storage_key:
+        raise NotFoundError("Shared document is unavailable")
+    return load_encrypted_blob(content.storage_key)
 
 
 def describe_share(session: Session, token: str) -> ShareDocumentResponse:
