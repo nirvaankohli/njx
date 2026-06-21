@@ -272,8 +272,7 @@ export default function DocumentsPage() {
           </CardHeader>
           <CardContent className="space-y-0">
             <div className="space-y-8">
-              <label
-                htmlFor="doc-upload"
+              <div
                 className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/20 px-6 py-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
               >
                 <Upload className="h-10 w-10 text-primary" />
