@@ -267,22 +267,14 @@ export default function DashboardPage() {
       <section className="grid gap-6 rounded-3xl border border-border/60 bg-card p-6 shadow-none lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em]">
-              Live dashboard
-            </Badge>
-            <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em]">
-              Quiet mode
-            </Badge>
+
           </div>
 
           <div className="max-w-2xl space-y-3">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
               Security posture, activity, and alerts in one place.
             </h1>
-            <p className="max-w-xl text-sm leading-6 text-muted-foreground md:text-base">
-              A calmer operational view for the DocShield tenant, with a quick read on document volume, live access
-              pressure, and the signals that deserve a closer look.
-            </p>
+
           </div>
 
           <div className="flex flex-wrap gap-3">
