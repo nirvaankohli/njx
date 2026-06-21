@@ -141,6 +141,7 @@ class AccessEventORM(Base):
     action: Mapped[str] = mapped_column(String, nullable=False)
     ip_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     user_agent_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    browser: Mapped[str | None] = mapped_column(String, nullable=True)
     country: Mapped[str | None] = mapped_column(String, nullable=True)
     result: Mapped[str] = mapped_column(String, default="allowed", nullable=False)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)

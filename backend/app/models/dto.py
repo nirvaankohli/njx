@@ -76,6 +76,7 @@ class AccessEvent(BaseModel):
     action: Literal["open", "download", "token_failed", "verify_attempt", "ai_upload_blocked"]
     ip_hash: str | None = None
     user_agent_hash: str | None = None
+    browser: str | None = None
     country: str | None = None
     result: Literal["allowed", "blocked", "failed"] = "allowed"
     reason: str | None = None
@@ -171,6 +172,7 @@ class AccessEventFeedItem(BaseModel):
     action: Literal["open", "download", "token_failed", "verify_attempt", "ai_upload_blocked"]
     ip_hash: str | None = None
     user_agent_hash: str | None = None
+    browser: str | None = None
     country: str | None = None
     result: Literal["allowed", "blocked", "failed"] = "allowed"
     reason: str | None = None

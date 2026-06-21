@@ -16,6 +16,7 @@ from app.services.share_service import (
     share_analytics,
     store_document_content,
 )
+from app.services.request_context import detect_browser, detect_country
 
 
 router = APIRouter(tags=["secure-sharing"])
@@ -61,7 +62,8 @@ def shared_document(token: str, request: Request, db: Session = Depends(get_db))
         db,
         link=link,
         action="open",
-        country=request.headers.get("cf-ipcountry") or request.headers.get("x-country"),
+        country=detect_country(request.headers),
+        browser=detect_browser(request.headers.get("user-agent")),
         client_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
@@ -82,7 +84,8 @@ def download_shared_document(
         db,
         link=link,
         action="download",
-        country=request.headers.get("cf-ipcountry") or request.headers.get("x-country"),
+        country=detect_country(request.headers),
+        browser=detect_browser(request.headers.get("user-agent")),
         client_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )

@@ -111,6 +111,7 @@ def record_share_access(
     link: ShareLinkORM,
     action: str,
     country: str | None,
+    browser: str,
     client_ip: str | None,
     user_agent: str | None,
 ) -> None:
@@ -123,7 +124,8 @@ def record_share_access(
         action=action,
         ip_hash=sha256_hex((client_ip or "unknown").encode()),
         user_agent_hash=sha256_hex((user_agent or "unknown").encode()),
-        country=(country or "unknown").upper(),
+        browser=browser,
+        country=country,
         result="allowed",
         risk_score=0,
         risk_reasons=[],
