@@ -14,7 +14,6 @@ export default function LandingPage() {
         { id: "signin", label: "Sign in", href: "/auth" },
       ]}
       callToActions={[
-        { text: "Get started", href: "/auth", variant: "primary" },
         { text: "Open reference", href: "/app/reference", variant: "secondary" },
       ]}
     />

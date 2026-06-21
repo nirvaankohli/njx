@@ -76,6 +76,11 @@ export function DynamicHero({
   const [showVideo, setShowVideo] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const canvasStrokeRef = useRef({ r: 128, g: 128, b: 128 });
+  const valueProps = [
+    "Signed docs stay easy to verify",
+    "Access history stays readable",
+    "Exports are one click away",
+  ];
 
   useEffect(() => {
     const tempElement = document.createElement("div");
@@ -138,22 +143,22 @@ export function DynamicHero({
     const controlX = midX;
     const controlY = midY + offset * t;
     const r = Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2);
-    const opacity = Math.min(1, (r - Math.max(rect.width, rect.height) / 2) / 500);
+    const opacity = Math.min(0.7, (r - Math.max(rect.width, rect.height) / 2) / 700);
 
     const arrowColor = canvasStrokeRef.current;
     ctx.strokeStyle = `rgba(${arrowColor.r}, ${arrowColor.g}, ${arrowColor.b}, ${opacity})`;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
 
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.quadraticCurveTo(controlX, controlY, x1, y1);
-    ctx.setLineDash([10, 5]);
+    ctx.setLineDash([8, 6]);
     ctx.stroke();
     ctx.restore();
 
     const angle = Math.atan2(y1 - controlY, x1 - controlX);
-    const headLength = 10 * (ctx.lineWidth / 1.5);
+    const headLength = 8 * (ctx.lineWidth / 1.5);
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x1 - headLength * Math.cos(angle - Math.PI / 6), y1 - headLength * Math.sin(angle - Math.PI / 6));
@@ -227,10 +232,10 @@ export function DynamicHero({
     <div className="relative flex min-h-screen w-screen flex-col overflow-x-hidden bg-background text-foreground">
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 -top-40 -z-10 min-h-screen overflow-hidden blur-3xl sm:-top-80"
+        className="absolute inset-x-0 -top-40 -z-10 min-h-screen overflow-hidden blur-2xl sm:-top-80"
       >
         <div
-          className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] max-w-none -translate-x-1/2 rotate-[30deg] opacity-30 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"
+          className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[32rem] max-w-none -translate-x-1/2 rotate-[30deg] opacity-18 sm:left-[calc(50%-30rem)] sm:w-[66rem]"
           style={{
             clipPath:
               "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
@@ -241,10 +246,10 @@ export function DynamicHero({
 
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 top-[calc(100%-13rem)] -z-10 min-h-screen overflow-hidden blur-3xl sm:top-[calc(100%-30rem)]"
+        className="absolute inset-x-0 top-[calc(100%-13rem)] -z-10 min-h-screen overflow-hidden blur-2xl sm:top-[calc(100%-30rem)]"
       >
         <div
-          className="relative left-[calc(50%+3rem)] aspect-[1155/678] w-[36.125rem] max-w-none -translate-x-1/2 opacity-30 sm:left-[calc(50%+36rem)] sm:w-[72.1875rem]"
+          className="relative left-[calc(50%+3rem)] aspect-[1155/678] w-[32rem] max-w-none -translate-x-1/2 opacity-16 sm:left-[calc(50%+36rem)] sm:w-[66rem]"
           style={{
             clipPath:
               "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
@@ -361,7 +366,7 @@ export function DynamicHero({
           </div>
 
           <div className="mt-8 flex justify-center">
-            <Button asChild variant="outline" className="border-foreground/50 bg-transparent">
+            <Button asChild className="shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5">
               <a ref={targetRef} href={buttonHref}>
                 {buttonText}
               </a>
@@ -386,14 +391,25 @@ export function DynamicHero({
             )}
           </div>
 
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
+            {valueProps.map((valueProp) => (
+              <span
+                key={valueProp}
+                className="rounded-full border border-border/70 bg-card/80 px-3 py-1.5 text-sm text-muted-foreground shadow-[0_1px_0_hsl(var(--background)/0.6)] transition-colors duration-200 ease-out hover:bg-card hover:text-foreground"
+              >
+                {valueProp}
+              </span>
+            ))}
+          </div>
+
           <div className="mx-auto mt-12 w-full max-w-screen-sm overflow-hidden px-4 sm:px-2 lg:mt-16">
-            <div className="rounded-[2rem] bg-border p-[0.25rem]">
+            <div className="rounded-[2rem] border border-border/60 bg-card/80 p-[0.25rem] shadow-[0_24px_80px_hsl(var(--foreground)/0.06)] transition-transform duration-300 ease-out hover:-translate-y-0.5">
               <div className="relative flex h-64 items-center justify-center overflow-hidden rounded-[1.75rem] bg-card sm:h-72 md:h-80 lg:h-96">
                 {imageUrl && (
                   <img
                     src={imageUrl}
                     alt="DocShield preview"
-                    className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${showVideo ? "pointer-events-none opacity-0" : "opacity-100"}`}
+                    className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-300 ease-out ${showVideo ? "pointer-events-none opacity-0" : "opacity-100"}`}
                   />
                 )}
                 {videoUrl && (
@@ -402,14 +418,14 @@ export function DynamicHero({
                     src={videoUrl}
                     muted
                     playsInline
-                    className={`h-full w-full object-cover transition-opacity duration-300 ${showVideo ? "opacity-100" : "pointer-events-none opacity-0"}`}
+                    className={`h-full w-full object-cover transition-[opacity,transform] duration-300 ease-out ${showVideo ? "opacity-100" : "pointer-events-none opacity-0"}`}
                   />
                 )}
                 {!showVideo && videoUrl && imageUrl && (
                   <button
                     type="button"
                     onClick={() => setShowVideo(true)}
-                    className="absolute bottom-3 left-3 z-20 rounded-full bg-accent/30 p-2 text-accent-foreground backdrop-blur-sm transition-colors hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring sm:bottom-4 sm:left-4 sm:p-3"
+                    className="absolute bottom-3 left-3 z-20 rounded-full bg-accent/30 p-2 text-accent-foreground backdrop-blur-sm transition-colors duration-200 ease-out hover:bg-accent/45 focus:outline-none focus:ring-2 focus:ring-ring sm:bottom-4 sm:left-4 sm:p-3"
                     aria-label="Play video"
                   >
                     <PlayIcon className="h-4 w-4 sm:h-6 sm:w-6" />
