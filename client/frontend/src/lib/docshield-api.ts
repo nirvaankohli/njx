@@ -11,10 +11,7 @@ export type PolicyTemplate = {
 };
 
 export type AiTag =
-  | "NO_EXTERNAL_AI"
-  | "SECURE_LINK_ONLY"
-  | "NO_FORWARDING"
-  | "PUBLIC_SHARING_BLOCKED";
+  | "NO_EXTERNAL_AI";
 
 export type DocumentManifest = {
   document_id: string;
@@ -157,10 +154,52 @@ export type AccessEvent = {
   reason?: string | null;
 };
 
+export type AccessEventFeedItem = AccessEvent & {
+  risk_score: number;
+  risk_reasons: string[];
+  severity: "low" | "medium" | "high";
+  suspicious: boolean;
+};
+
 export type AccessEventResponse = {
   accepted: boolean;
   event_id: string;
   risk_recomputed: boolean;
+};
+
+export type AccessEventsFeedResponse = {
+  tenant_id: string;
+  total_events: number;
+  suspicious_events: number;
+  events: AccessEventFeedItem[];
+};
+
+export type ShareLinkResponse = {
+  link_id: string;
+  document_id: string;
+  token: string;
+  access_method: "link" | "password" | "organization";
+  expires_at: string | null;
+};
+
+export type SharedDocument = {
+  link_id: string;
+  document_id: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  content_fingerprint: string;
+  issuer_key_id: string;
+  access_method: "link" | "password" | "organization";
+  password_required: boolean;
+  expires_at: string | null;
+};
+
+export type ShareAnalytics = {
+  document_id: string;
+  opens: number;
+  downloads: number;
+  countries: Record<string, number>;
 };
 
 export type DashboardResponse = {
@@ -258,6 +297,46 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  uploadDocumentContent: async (documentId: string, file: File) => {
+    const response = await fetch(buildUrl(`/documents/${encodeURIComponent(documentId)}/content`), {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream", "X-File-Name": file.name },
+      body: file,
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText);
+      throw new ApiError(response.status, message || `Request failed: ${response.status}`);
+    }
+  },
+  createShareLink: (
+    documentId: string,
+    payload: { access_method: "link" | "password" | "organization"; password_hash?: string | null; expires_in_hours?: number },
+  ) =>
+    request<ShareLinkResponse>(`/documents/${encodeURIComponent(documentId)}/share-links`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  shareAnalytics: (documentId: string) =>
+    request<ShareAnalytics>(`/documents/${encodeURIComponent(documentId)}/share-analytics`, { method: "GET" }),
+  sharedDocument: (token: string) =>
+    request<SharedDocument>(`/shares/${encodeURIComponent(token)}`, { method: "GET" }),
+  sharedDownloadUrl: (token: string) => buildUrl(`/shares/${encodeURIComponent(token)}/download`),
+  downloadSharedDocument: async (
+    token: string,
+    credentials: { passwordHash?: string; tenantId?: string } = {},
+  ) => {
+    const response = await fetch(buildUrl(`/shares/${encodeURIComponent(token)}/download`), {
+      headers: {
+        ...(credentials.passwordHash ? { "X-Share-Password-Hash": credentials.passwordHash } : {}),
+        ...(credentials.tenantId ? { "X-Tenant-ID": credentials.tenantId } : {}),
+      },
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => response.statusText);
+      throw new ApiError(response.status, message || `Request failed: ${response.status}`);
+    }
+    return response.blob();
+  },
   addHistory: (documentId: string, event: SignedHistoryEventPayload) =>
     request<HistoryAppendResponse>(`/documents/${encodeURIComponent(documentId)}/events`, {
       method: "POST",
@@ -284,6 +363,10 @@ export const api = {
     request<AccessEventResponse>(`/access-events`, {
       method: "POST",
       body: JSON.stringify(event),
+    }),
+  accessEventsFeed: (tenantId = getDocShieldSession().tenantId, limit = 25) =>
+    request<AccessEventsFeedResponse>(buildQueryPath(`/access-events`, { tenant_id: tenantId, limit }), {
+      method: "GET",
     }),
   dashboard: (tenantId = getDocShieldSession().tenantId, documentId?: string) => {
     const query: Record<string, string> = { tenant_id: tenantId };

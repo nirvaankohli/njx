@@ -50,7 +50,6 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
-          <Badge variant="secondary">Tenant {data.tenant_id}</Badge>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             High-level tenant telemetry, recent activity, and the active alert list.
@@ -83,8 +82,8 @@ export default function DashboardPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Showing sample data</AlertTitle>
           <AlertDescription>
-            The backend was unreachable, so the page fell back to mock data. Set `VITE_DOCSHIELD_API_BASE` or run the
-            local FastAPI server on `127.0.0.1:8000`.
+            The backend was unreachable, so the page fell back to mock data. Set the backend base URL or run the
+            local FastApi server on `127.0.0.1:8000`.
           </AlertDescription>
         </Alert>
       )}

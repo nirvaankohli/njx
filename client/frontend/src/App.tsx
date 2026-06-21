@@ -19,6 +19,7 @@ import AccessEventsPage from "./pages/docshield/AccessEventsPage";
 import ReferencePage from "./pages/docshield/ReferencePage";
 import SettingsPage from "./pages/docshield/SettingsPage";
 import SetupPage from "./pages/docshield/SetupPage";
+import SharedDocumentPage from "./pages/docshield/SharedDocumentPage";
 import Index from "./pages/Index";
 
 import NotFound from "./pages/NotFound";
@@ -36,6 +37,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/s/:token" element={<SharedDocumentPage />} />
               <Route
                 path="/onboarding"
                 element={

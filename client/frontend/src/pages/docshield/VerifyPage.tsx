@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { FileCheck2, Loader2, ShieldAlert, ShieldCheck, ShieldX, UploadCloud } from "lucide-react";
 import { api, type VerifyResult } from "@/lib/docshield-api";
-import { sha256Hex } from "@/lib/docshield-signing";
+import { humanizeDocShieldLabel } from "@/lib/docshield-labels";
+import { getDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,8 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { sha256Hex } from "@/lib/docshield-signing";
 
 export default function VerifyPage() {
+  const session = getDocShieldSession();
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -34,6 +37,7 @@ export default function VerifyPage() {
       setUploadedFingerprint(await sha256Hex(bytes));
       setResult(await api.verifyFile(selectedFile));
     } catch (err) {
+      setResult(null);
       toast.error("Verification failed", {
         description: err instanceof Error ? err.message : "The uploaded document could not be verified.",
       });
@@ -45,10 +49,6 @@ export default function VerifyPage() {
   return (
     <div className="space-y-6 max-w-5xl">
       <header className="space-y-2">
-        <Badge variant="secondary" className="gap-1">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Ed25519 authenticity check
-        </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Verify a document</h1>
         <p className="text-sm text-muted-foreground">
           Select a file to confirm that its exact contents match a document signed by a trusted issuer key.
@@ -109,6 +109,7 @@ export default function VerifyPage() {
             <CardDescription>The uploaded file is compared with the trusted registry.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            <Row label="Tenant" value={session.tenantName} />
             <Row label="File fingerprint" value={uploadedFingerprint ?? "Calculated after upload"} mono />
             <Row label="Registered document" value={result?.document_id ?? "Pending verification"} mono />
             <Row label="Issuer key" value={result?.issuer_key_id ?? "Pending verification"} mono />
@@ -158,7 +159,7 @@ function VerifyResultCard({ result }: { result: VerifyResult }) {
         </div>
 
         <div>
-          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Policy decision</div>
+          <div className="mb-2 text-xs tracking-[0.16em] text-muted-foreground">Policy decision</div>
           <div className="rounded-xl border border-border bg-muted/30 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -175,11 +176,11 @@ function VerifyResultCard({ result }: { result: VerifyResult }) {
         </div>
 
         <div>
-          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground mb-2">Reasons</div>
+          <div className="mb-2 text-xs tracking-[0.16em] text-muted-foreground">Reasons</div>
           <div className="flex flex-wrap gap-2">
             {result.reasons.map((reason) => (
-              <Badge key={reason} variant="outline" className="font-mono text-[10px]">
-                {reason}
+              <Badge key={reason} variant="outline" className="text-[10px] font-medium tracking-[0.08em]">
+                {humanizeDocShieldLabel(reason)}
               </Badge>
             ))}
           </div>
@@ -192,7 +193,7 @@ function VerifyResultCard({ result }: { result: VerifyResult }) {
 function ResultBadge({ label, value }: { label: string; value: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-background p-4">
-      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="text-xs tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className={`mt-1 text-sm font-medium ${value ? "text-emerald-500" : "text-destructive"}`}>
         {value ? "Pass" : "Fail"}
       </div>
@@ -203,8 +204,8 @@ function ResultBadge({ label, value }: { label: string; value: boolean }) {
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
-      <div className={`mt-1 ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</div>
+      <div className="text-xs tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-xs text-foreground ${mono ? "break-all font-mono" : ""}`}>{value}</div>
     </div>
   );
 }

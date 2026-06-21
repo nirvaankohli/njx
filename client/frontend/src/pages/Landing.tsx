@@ -165,7 +165,7 @@ const Landing = () => {
                         <div className="h-3.5 w-3.5 rounded border border-border flex items-center justify-center shrink-0">
                           <div className={`h-1.5 w-1.5 rounded-sm ${row.priority}`} />
                         </div>
-                        <span className="text-[11px] text-muted-foreground font-mono shrink-0">{row.id}</span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground font-medium">{row.id}</span>
                         <div className={`h-1.5 ${row.title} rounded-full bg-foreground/15`} />
                         <div className="ml-auto flex items-center gap-2">
                           <div className={`h-2 w-2 rounded-full ${row.status}`} />

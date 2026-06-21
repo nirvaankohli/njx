@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: docshield-backend
+Version: 0.1.0
+Summary: FastAPI backend for the DocShield blind metadata registry
+Requires-Python: >=3.11
+Requires-Dist: fastapi
+Requires-Dist: uvicorn[standard]
+Requires-Dist: pydantic
+Requires-Dist: sqlalchemy
+Requires-Dist: alembic
+Requires-Dist: asyncpg
+Requires-Dist: cryptography
+Requires-Dist: python-dotenv
+Requires-Dist: numpy
+Requires-Dist: torch
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: httpx; extra == "dev"

@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, Link, useNavigate } from "react-router-dom";
-import { Shield, LayoutDashboard, FileText, ShieldCheck, Activity, Settings2, Download, BookOpen, Building2, LogOut, CreditCard, User } from "lucide-react";
+import { LayoutDashboard, FileText, ShieldCheck, ShieldAlert, Settings2, Download, BookOpen, Building2, LogOut, CreditCard, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { frontendApi, type FrontendCompanySettings } from "@/lib/frontend-api";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/docshield-api";
+import { DocShieldBrand } from "@/components/DocShieldBrand";
 
 const nav = [
   { to: "/app", end: true, label: "Dashboard", icon: LayoutDashboard },
   { to: "/app/documents", label: "Documents", icon: FileText },
   { to: "/app/verify", label: "Verify", icon: ShieldCheck },
-  { to: "/app/access-events", label: "Access events", icon: Activity },
+  { to: "/app/access-events", label: "Anomaly hub", icon: ShieldAlert },
   { to: "/app/reference", label: "Reference", icon: BookOpen },
   { to: "/app/setup", label: "Organization setup", icon: Settings2 },
 ];
@@ -39,9 +40,11 @@ export default function DocShieldLayout() {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       <aside className="w-60 border-r border-border bg-sidebar shrink-0 hidden md:flex flex-col h-screen sticky top-0 self-start">
-        <Link to="/" className="flex items-center gap-2 px-5 py-5 border-b border-border">
-          <Shield className="h-5 w-5 text-primary" />
-          <span className="font-semibold tracking-tight">DocShield</span>
+        <Link to="/" className="flex items-start px-5 py-5 border-b border-border">
+          <DocShieldBrand
+            variant="wordmark"
+            logoClassName="h-8 w-[132px]"
+          />
         </Link>
 
         <div className="px-5 py-4 border-b border-border">

@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.db import AccessEventORM, DocumentORM, PublicKeyORM
-from app.models.dto import AccessEvent, AccessEventResponse, ActivityItem, AlertItem, DashboardResponse, RevocationSummary, VerificationSummary
+from app.models.dto import (
+    AccessEvent,
+    AccessEventFeedItem,
+    AccessEventFeedResponse,
+    AccessEventResponse,
+    ActivityItem,
+    AlertItem,
+    DashboardResponse,
+    RevocationSummary,
+    VerificationSummary,
+)
 from app.services.audit_service import log_action
 from app.services.errors import NotFoundError
 from app.services.risk_service import compute_risk_signals, score_access_event, severity_for_score
@@ -43,6 +53,50 @@ def record_access_event(session: Session, event: AccessEvent) -> AccessEventResp
     )
     session.commit()
     return AccessEventResponse(accepted=True, event_id=event.event_id, risk_recomputed=True)
+
+
+def build_access_events_feed(session: Session, tenant_id: str, limit: int = 25) -> AccessEventFeedResponse:
+    base_query = select(AccessEventORM).where(AccessEventORM.tenant_id == tenant_id)
+    events_query = base_query.order_by(AccessEventORM.timestamp.desc(), AccessEventORM.id.desc()).limit(limit)
+    total_events = session.scalar(select(func.count()).select_from(AccessEventORM).where(AccessEventORM.tenant_id == tenant_id)) or 0
+    suspicious_events = (
+        session.scalar(
+            select(func.count()).select_from(AccessEventORM).where(
+                AccessEventORM.tenant_id == tenant_id,
+                AccessEventORM.risk_score >= 50,
+            )
+        )
+        or 0
+    )
+    sliced_events = session.scalars(events_query).all()
+
+    feed_items = [
+        AccessEventFeedItem(
+            event_id=event.event_id,
+            tenant_id=event.tenant_id,
+            document_id=event.document_id,
+            link_id=event.link_id,
+            timestamp=event.timestamp,
+            action=event.action,
+            ip_hash=event.ip_hash,
+            user_agent_hash=event.user_agent_hash,
+            country=event.country,
+            result=event.result,
+            reason=event.reason,
+            risk_score=event.risk_score,
+            risk_reasons=list(event.risk_reasons),
+            severity=severity_for_score(event.risk_score),
+            suspicious=event.risk_score >= 50,
+        )
+        for event in sliced_events
+    ]
+
+    return AccessEventFeedResponse(
+        tenant_id=tenant_id,
+        total_events=total_events,
+        suspicious_events=suspicious_events,
+        events=feed_items,
+    )
 
 
 def build_dashboard(session: Session, tenant_id: str, document_id: str | None = None, from_: datetime | None = None, to: datetime | None = None) -> DashboardResponse:

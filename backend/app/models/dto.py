@@ -162,6 +162,64 @@ class AccessEventResponse(BaseModel):
     risk_recomputed: bool
 
 
+class AccessEventFeedItem(BaseModel):
+    event_id: str
+    tenant_id: str
+    document_id: str
+    link_id: str | None = None
+    timestamp: datetime
+    action: Literal["open", "download", "token_failed", "verify_attempt", "ai_upload_blocked"]
+    ip_hash: str | None = None
+    user_agent_hash: str | None = None
+    country: str | None = None
+    result: Literal["allowed", "blocked", "failed"] = "allowed"
+    reason: str | None = None
+    risk_score: int
+    risk_reasons: list[str] = Field(default_factory=list)
+    severity: Literal["low", "medium", "high"]
+    suspicious: bool
+
+
+class AccessEventFeedResponse(BaseModel):
+    tenant_id: str
+    total_events: int
+    suspicious_events: int
+    events: list[AccessEventFeedItem] = Field(default_factory=list)
+
+class ShareLinkCreateRequest(BaseModel):
+    access_method: Literal["link", "password", "organization"] = "link"
+    password_hash: str | None = None
+    expires_in_hours: int | None = Field(default=168, ge=1, le=24 * 365)
+
+
+class ShareLinkResponse(BaseModel):
+    link_id: str
+    document_id: str
+    token: str
+    access_method: str
+    expires_at: datetime | None = None
+
+
+class ShareDocumentResponse(BaseModel):
+    link_id: str
+    document_id: str
+    file_name: str
+    content_type: str
+    size_bytes: int
+    content_fingerprint: str
+    issuer_key_id: str
+    access_method: str
+    password_required: bool
+    expires_at: datetime | None = None
+
+
+class ShareAnalyticsResponse(BaseModel):
+    document_id: str
+    opens: int
+    downloads: int
+    countries: dict[str, int] = Field(default_factory=dict)
+
+
 class AlertItem(BaseModel):
     document_id: str
     severity: Literal["low", "medium", "high"]
