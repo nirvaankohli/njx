@@ -3,11 +3,11 @@ import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, BarChart3, Copy, Link2, Loader2, Plus } from "lucide-react";
 import {
   api,
+  type DocumentDetail,
   type DocumentManifest,
   type ShareAnalytics,
   type SignedHistoryEventPayload,
 } from "@/lib/docshield-api";
-import { mockDocuments, mockHistory } from "@/lib/docshield-mock";
 import { formatFileSize } from "@/lib/docshield-file";
 import { ensureDevSigningIdentity, signCanonicalPayload, toBackendIsoString } from "@/lib/docshield-signing";
 import { getDocShieldSession, updateDocShieldSession } from "@/lib/docshield-session";
@@ -32,7 +32,10 @@ export default function DocumentDetailPage() {
   const activeDocumentHistoryTip = session.activeDocument?.historyTip ?? null;
   const activeDocumentManifestHash = session.activeDocument?.manifestHash ?? null;
   const [doc, setDoc] = useState<DocumentManifest | null>(null);
+  const [details, setDetails] = useState<DocumentDetail | null>(null);
   const [history, setHistory] = useState<SignedHistoryEventPayload[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sharingBusy, setSharingBusy] = useState(false);
@@ -44,28 +47,59 @@ export default function DocumentDetailPage() {
   const [signature, setSignature] = useState("");
   const [payloadNote, setPayloadNote] = useState("Buyer confirmed receipt");
 
-  // The session object is rehydrated on every render, so we key the effect off
-  // stable primitives to avoid a refetch/render loop while still reacting to
-  // active document changes.
   useEffect(() => {
-    if (activeDocumentId === documentId && session.activeDocument) {
+    let cancelled = false;
+    const activeDocument = getDocShieldSession().activeDocument;
+    setLoading(true);
+    setLoadError(null);
+
+    if (activeDocumentId === documentId && activeDocument) {
       setDoc({
-        document_id: session.activeDocument.documentId,
+        document_id: activeDocument.documentId,
         tenant_id: session.tenantId,
-        content_fingerprint: activeDocumentFingerprint ?? session.activeDocument.contentFingerprint,
-        policy: session.activeDocument.signedManifest.manifest.policy,
-        embedded_ai_tags: session.activeDocument.signedManifest.manifest.embedded_ai_tags,
+        content_fingerprint: activeDocumentFingerprint ?? activeDocument.contentFingerprint,
+        policy: activeDocument.signedManifest.manifest.policy,
+        embedded_ai_tags: activeDocument.signedManifest.manifest.embedded_ai_tags,
         signer_refs: [session.issuerKeyId],
-        created_at: session.activeDocument.signedManifest.manifest.created_at,
+        created_at: activeDocument.signedManifest.manifest.created_at,
         status: "active",
       });
-      setHistory(session.activeDocument.history);
-      return;
+      setHistory(activeDocument.history);
     }
 
-    const localDocument = mockDocuments.find((entry) => entry.document_id === documentId) ?? null;
-    setDoc(localDocument);
-    setHistory(mockHistory[documentId] ?? []);
+    void api
+      .document(documentId, session.tenantId)
+      .then((document) => {
+        if (cancelled) return;
+        setDetails(document);
+        setDoc({
+          document_id: document.document_id,
+          tenant_id: document.tenant_id,
+          content_fingerprint: document.content_fingerprint,
+          policy: document.policy,
+          embedded_ai_tags: document.embedded_ai_tags,
+          signer_refs: [document.issuer_key_id],
+          created_at: document.created_at,
+          status: document.status,
+        });
+        setHistory(document.history);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setDetails(null);
+        setLoadError(error instanceof Error ? error.message : "Document service unavailable");
+        if (activeDocumentId !== documentId) {
+          setDoc(null);
+          setHistory([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     documentId,
     activeDocumentId,
@@ -79,8 +113,11 @@ export default function DocumentDetailPage() {
     session.tenantId,
   ]);
 
-  const manifestHash = useMemo(() => activeDocumentManifestHash ?? `sha256:${documentId}`, [documentId, activeDocumentManifestHash]);
-  const previousEventHash = activeDocumentHistoryTip;
+  const manifestHash = useMemo(
+    () => details?.manifest_hash ?? activeDocumentManifestHash ?? `sha256:${documentId}`,
+    [documentId, activeDocumentManifestHash, details?.manifest_hash],
+  );
+  const previousEventHash = details?.history_tip ?? activeDocumentHistoryTip;
   const shareLink = session.activeDocument?.documentId === documentId ? session.activeDocument.shareLink : null;
   const shareUrl = shareLink ? `${window.location.origin}/s/${shareLink.token}` : null;
 
@@ -148,6 +185,9 @@ export default function DocumentDetailPage() {
       };
       const response = await api.addHistory(documentId, signedEvent);
       setHistory((current) => [...current, signedEvent]);
+      setDetails((current) => current
+        ? { ...current, history_tip: response.history_tip, history: [...current.history, signedEvent], event_count: current.event_count + 1 }
+        : current);
       updateDocShieldSession({
         activeDocument: session.activeDocument
           ? {
@@ -182,7 +222,13 @@ export default function DocumentDetailPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Document passport</h1>
       </header>
 
-      {doc ? (
+      {loading && !doc ? (
+        <Card>
+          <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading document…
+          </CardContent>
+        </Card>
+      ) : doc ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Manifest summary</CardTitle>
@@ -194,15 +240,19 @@ export default function DocumentDetailPage() {
               <Field label="Status" value={doc.status ?? "active"} />
               <Field label="Fingerprint" value={doc.content_fingerprint} />
               <Field label="Signers" value={doc.signer_refs.join(", ") || "—"} />
-              <Field label="Source file" value={session.activeDocument?.sourceFileName ?? "—"} />
+              <Field label="Source file" value={details?.file_name ?? session.activeDocument?.sourceFileName ?? "—"} />
               <Field
                 label="Source type"
                 value={
-                  session.activeDocument?.sourceFileType
+                  details?.content_type
+                    ? `${details.content_type}${details.size_bytes != null ? ` · ${formatFileSize(details.size_bytes)}` : ""}`
+                    : session.activeDocument?.sourceFileType
                     ? `${session.activeDocument.sourceFileType}${session.activeDocument.sourceFileSize ? ` · ${formatFileSize(session.activeDocument.sourceFileSize)}` : ""}`
                     : "—"
                 }
               />
+              <Field label="History events" value={String(details?.event_count ?? history.length)} />
+              <Field label="Access" value={details?.access_method ?? "Not configured"} />
             </div>
             <div>
               <div className="text-xs tracking-[0.16em] text-muted-foreground mb-2">Policy</div>
@@ -227,8 +277,16 @@ export default function DocumentDetailPage() {
         </Card>
       ) : (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">Document not found.</CardContent>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground" role="alert">
+            Document not found.{loadError ? ` ${loadError}` : ""}
+          </CardContent>
         </Card>
+      )}
+
+      {doc && loadError && (
+        <div role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+          Showing the browser-session copy because the document service could not be reached. {loadError}
+        </div>
       )}
 
       {doc && activeDocumentId === documentId && (

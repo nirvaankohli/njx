@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiMocks = vi.hoisted(() => ({
   setup: vi.fn(),
   registerDocument: vi.fn(),
   uploadDocumentContent: vi.fn(),
+  documents: vi.fn(),
+  deleteDocument: vi.fn(),
 }));
 
 const sessionUpdateMock = vi.hoisted(() => ({
@@ -47,6 +49,8 @@ vi.mock("@/lib/docshield-api", async () => {
       setup: apiMocks.setup,
       registerDocument: apiMocks.registerDocument,
       uploadDocumentContent: apiMocks.uploadDocumentContent,
+      documents: apiMocks.documents,
+      deleteDocument: apiMocks.deleteDocument,
     },
   };
 });
@@ -76,6 +80,12 @@ vi.mock("@/lib/docshield-file", async () => {
 import DocumentsPage from "./DocumentsPage";
 
 describe("DocumentsPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.documents.mockResolvedValue([]);
+    apiMocks.deleteDocument.mockResolvedValue(undefined);
+  });
+
   it("keeps the signed document in the local session when backend setup fails", async () => {
     const file = new File(["hello world"], "agreement.pdf", { type: "application/pdf" });
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -126,7 +136,7 @@ describe("DocumentsPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Signed file ready")).toBeInTheDocument();
-      expect(screen.getAllByText("agreement.pdf")).toHaveLength(2);
+      expect(screen.getAllByText("agreement.pdf")).toHaveLength(3);
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Copy download link" }));
@@ -145,5 +155,69 @@ describe("DocumentsPage", () => {
         }),
       }),
     );
+  });
+
+  it("filters backend documents and deletes one after confirmation", async () => {
+    apiMocks.documents.mockResolvedValueOnce([
+      {
+        document_id: "doc_report",
+        tenant_id: "tenant_acme",
+        issuer_key_id: "key_acme_primary",
+        content_fingerprint: "sha256:report",
+        policy: {
+          external_ai_upload: "blocked",
+          secure_link_required: true,
+          forwarding: "blocked",
+          public_sharing: "blocked",
+        },
+        embedded_ai_tags: ["NO_EXTERNAL_AI"],
+        created_at: "2026-06-20T12:00:00.000Z",
+        status: "active",
+        file_name: "report.pdf",
+        content_type: "application/pdf",
+        size_bytes: 2048,
+        access_method: "organization",
+        event_count: 2,
+      },
+      {
+        document_id: "doc_contract",
+        tenant_id: "tenant_acme",
+        issuer_key_id: "key_acme_primary",
+        content_fingerprint: "sha256:contract",
+        policy: {
+          external_ai_upload: "blocked",
+          secure_link_required: true,
+          forwarding: "blocked",
+          public_sharing: "blocked",
+        },
+        embedded_ai_tags: ["NO_EXTERNAL_AI"],
+        created_at: "2026-06-19T12:00:00.000Z",
+        status: "revoked",
+        file_name: "contract.docx",
+        content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        size_bytes: 4096,
+        access_method: "link",
+        event_count: 3,
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <DocumentsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("link", { name: "Open report.pdf" });
+    fireEvent.change(screen.getByLabelText("Search documents"), { target: { value: "report" } });
+    expect(screen.queryByRole("link", { name: "Open contract.docx" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete report.pdf" }));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete document" }));
+
+    await waitFor(() => {
+      expect(apiMocks.deleteDocument).toHaveBeenCalledWith("doc_report", "tenant_acme");
+      expect(screen.queryByRole("link", { name: "Open report.pdf" })).not.toBeInTheDocument();
+    });
   });
 });

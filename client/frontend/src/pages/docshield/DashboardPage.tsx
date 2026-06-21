@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { AlertCircle, Download, FileText, Activity, ShieldAlert, Loader2 } from "lucide-react";
-import { api, type DashboardResponse } from "@/lib/docshield-api";
+import { api, type DashboardResponse, type DocumentSummary } from "@/lib/docshield-api";
 import { mockDashboard } from "@/lib/docshield-mock";
+import { formatFileSize } from "@/lib/docshield-file";
 import { getDocShieldSession } from "@/lib/docshield-session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,24 +14,30 @@ import { toast } from "sonner";
 export default function DashboardPage() {
   const session = getDocShieldSession();
   const [data, setData] = useState<DashboardResponse | null>(null);
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [usingMock, setUsingMock] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const tenantId = session.tenantId;
-    const documentId = session.activeDocument?.documentId;
-    api
-      .dashboard(tenantId, documentId)
-      .then((response) => {
-        setData(response);
+    Promise.all([api.dashboard(tenantId), api.documents(tenantId)])
+      .then(([dashboard, managedDocuments]) => {
+        setData(dashboard);
+        setDocuments(managedDocuments);
         setUsingMock(false);
       })
       .catch(() => {
         setData(mockDashboard);
+        setDocuments([]);
         setUsingMock(true);
       })
       .finally(() => setLoading(false));
-  }, [session.activeDocument?.documentId, session.tenantId]);
+  }, [session.tenantId]);
+
+  const documentsById = useMemo(
+    () => new Map(documents.map((document) => [document.document_id, document])),
+    [documents],
+  );
 
   if (loading || !data) {
     return (
@@ -45,6 +53,10 @@ export default function DashboardPage() {
     { label: "Access events", value: data.access_events, icon: Activity },
     { label: "Alerts", value: data.alerts.length, icon: ShieldAlert },
   ];
+  const activeDocumentId = session.activeDocument?.documentId;
+  const auditDocumentId = documents.some((document) => document.document_id === activeDocumentId)
+    ? activeDocumentId
+    : documents[0]?.document_id;
 
   return (
     <div className="space-y-6">
@@ -58,12 +70,10 @@ export default function DashboardPage() {
         <Button
           variant="outline"
           size="sm"
+          disabled={!auditDocumentId}
           onClick={() =>
-            api
-              .auditExport(
-                getDocShieldSession().tenantId,
-                getDocShieldSession().activeDocument?.documentId ?? data.alerts[0]?.document_id ?? "doc_7f92ab31",
-              )
+            auditDocumentId && api
+              .auditExport(session.tenantId, auditDocumentId)
               .then((response) => window.open(api.auditExportUrl(response.tenant_id, response.document_id), "_blank"))
               .catch(() =>
                 toast.message("Audit export unavailable", {
@@ -102,6 +112,41 @@ export default function DashboardPage() {
         ))}
       </section>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Documents</CardTitle>
+          <CardDescription>Recently managed documents across {session.tenantName}.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {documents.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              {usingMock ? "Document details are unavailable while showing sample data." : "No documents yet."}
+            </div>
+          ) : (
+            <ul className="divide-y divide-border" aria-label="Recent documents">
+              {documents.slice(0, 5).map((document) => (
+                <li key={document.document_id}>
+                  <Link
+                    to={`/app/documents/${encodeURIComponent(document.document_id)}`}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg px-2 py-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{document.file_name ?? document.document_id}</div>
+                      <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{document.document_id}</div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {document.content_type && <span>{friendlyFileType(document.content_type)}</span>}
+                      {document.size_bytes != null && <span>{formatFileSize(document.size_bytes)}</span>}
+                      <Badge variant={document.status === "revoked" ? "destructive" : "secondary"}>{document.status}</Badge>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
       <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <Card>
           <CardHeader>
@@ -116,7 +161,7 @@ export default function DashboardPage() {
                 <div key={alert.document_id + alert.score} className="rounded-xl border border-border bg-background/60 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="font-medium">{alert.document_id}</div>
+                      <DocumentLabel document={documentsById.get(alert.document_id)} documentId={alert.document_id} />
                       <div className="mt-1 text-xs text-muted-foreground">{alert.reason_codes.join(" · ")}</div>
                     </div>
                     <Badge
@@ -144,7 +189,7 @@ export default function DashboardPage() {
               data.recent_activity.map((item, index) => (
                 <div key={`${item.document_id}-${item.timestamp}-${index}`} className="rounded-xl border border-border bg-background/60 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium">{item.document_id}</div>
+                    <DocumentLabel document={documentsById.get(item.document_id)} documentId={item.document_id} />
                     <Badge variant="outline">{item.action}</Badge>
                   </div>
                   <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
@@ -159,4 +204,19 @@ export default function DashboardPage() {
       </section>
     </div>
   );
+}
+
+function DocumentLabel({ document, documentId }: { document?: DocumentSummary; documentId: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="truncate font-medium">{document?.file_name ?? documentId}</div>
+      {document?.file_name && <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{documentId}</div>}
+    </div>
+  );
+}
+
+function friendlyFileType(contentType: string) {
+  if (contentType === "application/pdf") return "PDF";
+  if (contentType.includes("wordprocessingml")) return "DOCX";
+  return contentType;
 }

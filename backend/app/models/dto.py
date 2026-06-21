@@ -151,6 +151,31 @@ class DocumentRegistrationResponse(BaseModel):
     history_tip: str
 
 
+class DocumentSummary(BaseModel):
+    document_id: str
+    tenant_id: str
+    issuer_key_id: str
+    content_fingerprint: str
+    policy: dict = Field(default_factory=dict)
+    embedded_ai_tags: list[str] = Field(default_factory=list)
+    created_at: datetime
+    status: Literal["active", "revoked"]
+    file_name: str | None = None
+    content_type: str | None = None
+    size_bytes: int | None = None
+    access_method: str | None = None
+    event_count: int = 0
+
+
+class DocumentDetail(DocumentSummary):
+    manifest: dict
+    manifest_hash: str
+    history_tip: str
+    history: list[SignatureHistoryEvent] = Field(default_factory=list)
+    last_verified_status: str | None = None
+    last_verified_at: datetime | None = None
+
+
 class EventAppendResponse(BaseModel):
     document_id: str
     event_id: str
