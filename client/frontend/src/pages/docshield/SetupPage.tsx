@@ -554,31 +554,11 @@ export default function SetupPage() {
     <form onSubmit={submit} className="space-y-6 max-w-6xl">
       <header className="space-y-2">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1 text-[10px] font-medium tracking-[0.08em]">
-            <BadgeCheck className="h-3.5 w-3.5" />
-            Setup
-          </Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Organization setup</h1>
         <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-          Add your organization once, define who counts as internal, and shape the document rules with presets and
-          buttons instead of raw JSON.
         </p>
       </header>
-
-      <Alert>
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Signing stays local in dev</AlertTitle>
-        <AlertDescription>
-          This page generates a local Ed25519 keypair, stores the private key in your browser, and uses the public key
-          for{" "}
-          <Badge variant="outline" className="mx-1 text-[10px] font-medium tracking-[0.08em]">
-            Post /setup
-          </Badge>
-          . The document and verify flows reuse the same keypair.
-        </AlertDescription>
-      </Alert>
-
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-6">
           <Card>

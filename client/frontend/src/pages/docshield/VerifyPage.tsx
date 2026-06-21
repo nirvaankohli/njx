@@ -55,13 +55,6 @@ export default function VerifyPage() {
         </p>
       </header>
 
-      <Alert>
-        <FileCheck2 className="h-4 w-4" />
-        <AlertTitle>Your file stays private</AlertTitle>
-        <AlertDescription>
-          DocShield streams the file to calculate its SHA-256 fingerprint. It does not store the uploaded bytes.
-        </AlertDescription>
-      </Alert>
 
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <Card>
