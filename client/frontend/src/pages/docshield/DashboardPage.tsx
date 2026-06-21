@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   TrendingUp,
 } from "lucide-react";
+import { ComposableMap, Geographies, Geography, Graticule, Sphere } from "react-simple-maps";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
 import { api, type DashboardResponse, type DocumentSummary } from "@/lib/docshield-api";
 import { mockDashboard } from "@/lib/docshield-mock";
@@ -25,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { toast } from "sonner";
+import worldCountriesTopoJson from "world-atlas/countries-110m.json";
 
 const ACTIVITY_LABELS: Record<string, string> = {
   open: "Open",
@@ -54,63 +56,72 @@ const SEVERITY_COLORS: Record<DashboardResponse["alerts"][number]["severity"], s
   low: "hsl(var(--success))",
 };
 
-const FOOTPRINT_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--info))",
-  "hsl(var(--warning))",
-  "hsl(var(--success))",
-  "hsl(var(--muted-foreground))",
-];
-
-const DOWNLOAD_HEATMAP_POINTS: Record<string, { x: number; y: number; size: number }> = {
-  US: { x: 118, y: 202, size: 1.2 },
-  CA: { x: 110, y: 142, size: 1 },
-  MX: { x: 158, y: 252, size: 0.9 },
-  BR: { x: 278, y: 290, size: 1.05 },
-  AR: { x: 256, y: 340, size: 0.8 },
-  GB: { x: 438, y: 126, size: 0.7 },
-  IE: { x: 416, y: 124, size: 0.65 },
-  FR: { x: 452, y: 156, size: 0.8 },
-  DE: { x: 474, y: 146, size: 0.85 },
-  ES: { x: 440, y: 186, size: 0.75 },
-  IT: { x: 490, y: 182, size: 0.76 },
-  NL: { x: 474, y: 134, size: 0.7 },
-  SE: { x: 492, y: 110, size: 0.68 },
-  NO: { x: 468, y: 104, size: 0.68 },
-  UA: { x: 520, y: 144, size: 0.8 },
-  RU: { x: 610, y: 120, size: 1.2 },
-  TR: { x: 528, y: 188, size: 0.82 },
-  AE: { x: 596, y: 226, size: 0.68 },
-  SA: { x: 558, y: 236, size: 0.82 },
-  EG: { x: 512, y: 208, size: 0.8 },
-  NG: { x: 474, y: 248, size: 0.76 },
-  KE: { x: 536, y: 286, size: 0.72 },
-  ZA: { x: 522, y: 344, size: 0.82 },
-  IN: { x: 664, y: 236, size: 1.12 },
-  PK: { x: 630, y: 214, size: 0.82 },
-  BD: { x: 692, y: 230, size: 0.8 },
-  CN: { x: 742, y: 184, size: 1.14 },
-  JP: { x: 804, y: 170, size: 0.84 },
-  KR: { x: 782, y: 158, size: 0.72 },
-  SG: { x: 732, y: 286, size: 0.6 },
-  AU: { x: 814, y: 330, size: 1 },
-  NZ: { x: 866, y: 356, size: 0.7 },
+const COUNTRY_NAME_TO_CODE: Record<string, string> = {
+  canada: "CA",
+  mexico: "MX",
+  brazil: "BR",
+  argentina: "AR",
+  "united states": "US",
+  "united states of america": "US",
+  us: "US",
+  uk: "GB",
+  "united kingdom": "GB",
+  "great britain": "GB",
+  britain: "GB",
+  ireland: "IE",
+  france: "FR",
+  germany: "DE",
+  spain: "ES",
+  italy: "IT",
+  netherlands: "NL",
+  sweden: "SE",
+  norway: "NO",
+  ukraine: "UA",
+  russia: "RU",
+  "russian federation": "RU",
+  turkey: "TR",
+  egypt: "EG",
+  saudiarabia: "SA",
+  "saudi arabia": "SA",
+  india: "IN",
+  pakistan: "PK",
+  bangladesh: "BD",
+  china: "CN",
+  japan: "JP",
+  korea: "KR",
+  "south korea": "KR",
+  singapore: "SG",
+  australia: "AU",
+  "new zealand": "NZ",
+  "south africa": "ZA",
+  nigeria: "NG",
+  kenya: "KE",
+  "united arab emirates": "AE",
 };
 
-const DOWNLOAD_HEATMAP_FALLBACKS = [
-  { x: 140, y: 220, size: 0.92 },
-  { x: 468, y: 164, size: 0.84 },
-  { x: 548, y: 248, size: 0.9 },
-  { x: 690, y: 200, size: 0.96 },
-  { x: 812, y: 322, size: 0.78 },
-];
+const COUNTRY_DISPLAY_NAMES = typeof Intl.DisplayNames !== "undefined" ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
 
-function resolveHeatmapPoint(country: string, index: number) {
-  return DOWNLOAD_HEATMAP_POINTS[country] ?? DOWNLOAD_HEATMAP_FALLBACKS[index % DOWNLOAD_HEATMAP_FALLBACKS.length];
+function normalizeCountryName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z]+/g, " ")
+    .trim();
+}
+
+function resolveCountryCode(name: string) {
+  return COUNTRY_NAME_TO_CODE[normalizeCountryName(name)] ?? null;
 }
 
 function countryLabel(country: string) {
-  return country === "Unknown" ? "Unknown" : country;
+  if (country === "Unknown") return "Unknown";
+  return COUNTRY_DISPLAY_NAMES?.of(country.toUpperCase()) ?? country.toUpperCase();
+}
+
+function heatFill(count: number, max: number) {
+  if (!count || max <= 0) return "hsl(var(--muted-foreground) / 0.14)";
+  const intensity = count / max;
+  return `hsl(var(--warning) / ${0.28 + intensity * 0.55})`;
 }
 
 function countBy<T extends string>(values: T[]) {
@@ -171,7 +182,7 @@ export default function DashboardPage() {
     const alerts = [...(data?.alerts ?? [])].sort((left, right) => right.score - left.score);
     const downloadActivity = recentActivity.filter((item) => item.action === "download");
     const activityCounts = countBy(recentActivity.map((item) => item.action));
-    const downloadCountryCounts = countBy(downloadActivity.map((item) => item.country ?? "Unknown"));
+    const downloadCounts = countBy(downloadActivity.map((item) => (item.country ?? "Unknown").toUpperCase()));
     const severityCounts = countBy(alerts.map((item) => item.severity));
     const reasonCounts = countBy(alerts.flatMap((item) => item.reason_codes));
     const documentCounts = countBy(recentActivity.map((item) => item.document_id));
@@ -217,17 +228,13 @@ export default function DashboardPage() {
       .sort((left, right) => right.value - left.value)
       .slice(0, 4);
 
-    const downloadHeatmapData = Object.entries(downloadCountryCounts)
-      .map(([label, value], index) => {
-        const point = resolveHeatmapPoint(label, index);
+    const totalDownloads = Object.values(downloadCounts).reduce((sum, current) => sum + current, 0);
+    const downloadHeatmapData = Object.entries(downloadCounts)
+      .map(([country, value]) => {
         return {
-          label,
+          country,
           value,
-          fill: FOOTPRINT_COLORS[index % FOOTPRINT_COLORS.length],
-          x: point.x,
-          y: point.y,
-          size: point.size,
-          share: downloadActivity.length ? value / downloadActivity.length : 0,
+          share: totalDownloads ? value / totalDownloads : 0,
         };
       })
       .sort((left, right) => right.value - left.value)
@@ -247,7 +254,8 @@ export default function DashboardPage() {
       oldestActivity: recentActivity[recentActivity.length - 1] ?? null,
       highSeverityAlerts: alerts.filter((item) => item.severity === "high").length,
       downloadHeatmapData,
-      downloadCount: downloadActivity.length,
+      downloadCount: totalDownloads,
+      downloadCounts,
     };
   }, [data]);
 
@@ -593,53 +601,54 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {analytics.downloadHeatmapData.length === 0 ? (
-              <div className="flex h-[320px] items-center justify-center rounded-3xl border border-dashed border-border/60 bg-background/50 text-sm text-muted-foreground">
-                No download data yet.
+              <div className="flex h-[360px] items-center justify-center rounded-3xl border border-dashed border-border/60 bg-background/50 text-sm text-muted-foreground">
+                No download geography yet.
               </div>
             ) : (
               <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
                 <div className="rounded-[2rem] border border-border/60 bg-background/60 p-3">
-                  <div className="relative overflow-hidden rounded-[1.5rem] border border-border/60 bg-[radial-gradient(circle_at_center,_hsl(var(--primary)/0.16),_hsl(var(--background)/0.96)_62%)]">
-                    <svg viewBox="0 0 960 420" className="block h-auto w-full" role="img" aria-label="Stylized world heatmap of download activity">
-                      <defs>
-                        <radialGradient id="download-heat" cx="50%" cy="50%" r="50%">
-                          <stop offset="0%" stopColor="hsl(var(--warning))" stopOpacity="0.95" />
-                          <stop offset="45%" stopColor="hsl(var(--destructive))" stopOpacity="0.75" />
-                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-                        </radialGradient>
-                        <filter id="download-glow" x="-40%" y="-40%" width="180%" height="180%">
-                          <feGaussianBlur stdDeviation="10" />
-                        </filter>
-                      </defs>
-
-                      <rect x="0" y="0" width="960" height="420" fill="transparent" />
-                      <g opacity="0.42" stroke="hsl(var(--border))" strokeDasharray="5 9">
-                        <path d="M0 105H960" />
-                        <path d="M0 210H960" />
-                        <path d="M0 315H960" />
-                        <path d="M120 0V420" />
-                        <path d="M300 0V420" />
-                        <path d="M480 0V420" />
-                        <path d="M660 0V420" />
-                        <path d="M840 0V420" />
-                      </g>
-
-                      <g fill="hsl(var(--muted-foreground) / 0.18)" stroke="hsl(var(--border) / 0.9)" strokeWidth="2">
-                        <path d="M72 124C66 92 84 72 114 66C152 58 174 80 176 105C180 131 160 147 150 165C142 180 146 194 144 210C140 229 120 250 96 260C68 260 46 240 46 218C46 184 72 164 72 124Z" />
-                        <path d="M398 98C417 80 443 76 462 89C478 100 486 118 495 135C505 156 520 169 523 191C526 214 513 232 493 244C483 250 478 261 479 277C481 300 471 325 452 343C430 365 388 356 377 325C366 294 377 267 375 244C373 223 359 210 352 192C343 170 348 146 362 125C372 110 381 104 398 98Z" />
-                        <path d="M588 108C612 82 656 67 701 75C742 83 785 107 815 138C837 161 859 186 866 217C871 240 864 258 843 265C823 271 806 262 790 260C771 258 752 271 737 288C721 306 709 320 694 327C668 339 634 333 619 312C606 292 614 266 624 247C633 230 625 214 607 198C590 183 571 166 566 145C562 125 571 116 588 108Z" />
-                      </g>
-
-                      {analytics.downloadHeatmapData.map((point) => (
-                        <g key={point.label}>
-                          <circle cx={point.x} cy={point.y} r={point.size * 42} fill="url(#download-heat)" opacity={0.36 + point.share * 0.4} filter="url(#download-glow)" />
-                          <circle cx={point.x} cy={point.y} r={point.size * 18} fill={point.fill} opacity={0.88} />
-                          <circle cx={point.x} cy={point.y} r={point.size * 7} fill="hsl(var(--background))" opacity={0.25} />
-                        </g>
-                      ))}
-                    </svg>
-
-                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_hsl(var(--primary)/0.06),_transparent_40%),radial-gradient(circle_at_bottom_right,_hsl(var(--warning)/0.08),_transparent_34%)]" />
+                  <div className="relative overflow-hidden rounded-[1.5rem] border border-border/60 bg-background/60">
+                    <ComposableMap
+                      projection="geoEqualEarth"
+                      projectionConfig={{ scale: 155, rotate: [-12, 0, 0] }}
+                      width={980}
+                      height={520}
+                      style={{ width: "100%", height: "auto" }}
+                    >
+                      <Sphere id="dashboard-sphere" stroke="hsl(var(--border))" strokeWidth={1} fill="hsl(var(--background))" />
+                      <Graticule stroke="hsl(var(--border) / 0.35)" strokeWidth={0.5} strokeDasharray="3 6" />
+                      <Geographies geography={worldCountriesTopoJson}>
+                        {({ geographies }) =>
+                          geographies.map((geography) => {
+                            const countryCode = resolveCountryCode(geography.properties.name);
+                            const count = countryCode ? analytics.downloadCounts[countryCode] ?? 0 : 0;
+                            return (
+                              <Geography
+                                key={geography.rsmKey}
+                                geography={geography}
+                                style={{
+                                  default: {
+                                    fill: heatFill(count, analytics.downloadHeatmapData[0]?.value ?? 0),
+                                    stroke: "hsl(var(--border) / 0.7)",
+                                    strokeWidth: 0.6,
+                                    outline: "none",
+                                  },
+                                  hover: {
+                                    fill: count ? "hsl(var(--warning) / 0.95)" : "hsl(var(--muted-foreground) / 0.22)",
+                                    stroke: "hsl(var(--foreground) / 0.7)",
+                                    strokeWidth: 0.8,
+                                    outline: "none",
+                                  },
+                                  pressed: {
+                                    outline: "none",
+                                  },
+                                }}
+                              />
+                            );
+                          })
+                        }
+                      </Geographies>
+                    </ComposableMap>
                   </div>
                 </div>
 
@@ -651,7 +660,7 @@ export default function DashboardPage() {
                         <p className="mt-1 text-lg font-semibold">{analytics.downloadCount} downloads</p>
                       </div>
                       <Badge variant="outline" className="rounded-full">
-                        {analytics.downloadHeatmapData[0]?.label ?? "No data"}
+                        {countryLabel(analytics.downloadHeatmapData[0]?.country ?? "Unknown")}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -661,10 +670,10 @@ export default function DashboardPage() {
 
                   <div className="space-y-2">
                     {analytics.downloadHeatmapData.map((entry) => (
-                      <div key={entry.label} className="rounded-2xl border border-border/60 bg-background/60 p-4">
-                        <div className="flex items-start justify-between gap-3">
+                      <div key={entry.country} className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-medium">{countryLabel(entry.label)}</div>
+                            <div className="text-sm font-medium">{countryLabel(entry.country)}</div>
                             <div className="mt-1 text-xs text-muted-foreground">{entry.value} downloads</div>
                           </div>
                           <Badge variant="outline" className="rounded-full">
@@ -675,8 +684,8 @@ export default function DashboardPage() {
                           <div
                             className="h-full rounded-full"
                             style={{
-                              width: `${Math.max(8, Math.round(entry.share * 100))}%`,
-                              backgroundColor: entry.fill,
+                              width: `${Math.max(10, Math.round(entry.share * 100))}%`,
+                              backgroundColor: heatFill(entry.value, analytics.downloadHeatmapData[0]?.value ?? 0),
                             }}
                           />
                         </div>
