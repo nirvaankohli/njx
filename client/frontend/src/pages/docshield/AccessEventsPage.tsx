@@ -391,13 +391,13 @@ export default function AccessEventsPage() {
               ))}
             </div>
 
-            <div className="relative w-full sm:max-w-[280px]">
+            <div className="relative w-full sm:max-w-[220px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Search anomaly events"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Find document, link, country…"
+                placeholder="Find document…"
                 className="h-9 bg-background pl-9 pr-9"
               />
               {searchQuery && (
@@ -451,8 +451,8 @@ export default function AccessEventsPage() {
           </Card>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-          <Card>
+        <div className="flex flex-col gap-4 xl:sticky xl:top-6 xl:self-start">
+          <Card className="order-2">
             <CardHeader>
               <CardTitle className="text-base">Suspicious rail</CardTitle>
               <CardDescription>Fast path to the events the model wants reviewed first.</CardDescription>
@@ -495,7 +495,7 @@ export default function AccessEventsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="order-1 border-border/60 shadow-none">
             <CardHeader>
               <CardTitle className="text-base">Selected event</CardTitle>
               <CardDescription>Single-event detail panel with the score and reason trail.</CardDescription>
@@ -557,7 +557,7 @@ export default function AccessEventsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="order-3">
             <CardHeader>
               <CardTitle className="text-base">Simulate event</CardTitle>
               <CardDescription>Keep the demo utility for generating fresh scored events.</CardDescription>
