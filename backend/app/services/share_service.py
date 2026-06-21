@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.db import AccessEventORM, DocumentContentORM, DocumentORM, ShareLinkORM
 from app.models.dto import ShareAnalyticsResponse, ShareDocumentResponse, ShareLinkCreateRequest, ShareLinkResponse
 from app.security.hashes import sha256_hex
+from app.services.embedded_document_service import embed_encrypted_passport
 from app.services.errors import ConflictError, DocShieldError, NotFoundError
 
 
@@ -23,16 +24,15 @@ def store_document_content(
     document = session.get(DocumentORM, document_id)
     if document is None:
         raise NotFoundError(f"Document {document_id} not found")
-    if sha256_hex(content) != document.content_fingerprint:
-        raise ConflictError("Uploaded bytes do not match the signed content fingerprint")
+    protected_content = embed_encrypted_passport(session, document_id, content)
     row = session.get(DocumentContentORM, document_id)
     if row is None:
-        row = DocumentContentORM(document_id=document_id, file_name=file_name, content_type=content_type, content=content, size_bytes=len(content))
+        row = DocumentContentORM(document_id=document_id, file_name=file_name, content_type=content_type, content=protected_content, size_bytes=len(protected_content))
     else:
         row.file_name = file_name
         row.content_type = content_type
-        row.content = content
-        row.size_bytes = len(content)
+        row.content = protected_content
+        row.size_bytes = len(protected_content)
     session.add(row)
     session.commit()
 

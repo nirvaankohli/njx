@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.models.dto import ManifestClaims, SignatureHistoryEvent
 from app.security.hashes import sha256_hex
+from app.services.embedded_document_service import TRAILER_MAGIC
 
 from .helpers import manifest_hash_for, make_keypair, signed_event_payload, signed_manifest_payload
 
@@ -82,7 +83,9 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
 
     downloaded = client.get(f"/shares/{token}/download", headers={"X-Country": "US"})
     assert downloaded.status_code == 200
-    assert downloaded.content == content
+    assert downloaded.content.startswith(content)
+    assert downloaded.content.endswith(TRAILER_MAGIC)
+    assert downloaded.content != content
     assert "agreement.pdf" in downloaded.headers["content-disposition"]
 
     analytics = client.get(f"/documents/{document_id}/share-analytics").json()
@@ -100,6 +103,44 @@ def test_signed_document_secure_link_download_analytics_and_verification(client)
     assert verified.json()["fingerprint_match"] is True
     assert verified.json()["manifest_signature_valid"] is True
     assert verified.json()["signature_chain_valid"] is True
+
+
+def test_embedded_passport_detects_original_file_tampering(client):
+    document_id, content = _register_original(client)
+    client.put(
+        f"/documents/{document_id}/content",
+        content=content,
+        headers={"X-File-Name": "agreement.pdf", "Content-Type": "application/pdf"},
+    )
+    token = client.post(
+        f"/documents/{document_id}/share-links",
+        json={"access_method": "link"},
+    ).json()["token"]
+    protected = bytearray(client.get(f"/shares/{token}/download").content)
+    protected[0] ^= 1
+
+    response = client.post("/verify/file", content=bytes(protected))
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "tampered"
+    assert response.json()["fingerprint_match"] is False
+
+
+def test_embedded_passport_rejects_encrypted_metadata_tampering(client):
+    document_id, content = _register_original(client)
+    client.put(
+        f"/documents/{document_id}/content",
+        content=content,
+        headers={"X-File-Name": "agreement.docx", "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+    )
+    token = client.post(f"/documents/{document_id}/share-links", json={"access_method": "link"}).json()["token"]
+    protected = bytearray(client.get(f"/shares/{token}/download").content)
+    protected[-len(TRAILER_MAGIC) - 9] ^= 1
+
+    response = client.post("/verify/file", content=bytes(protected))
+
+    assert response.status_code == 400
+    assert "invalid or has been altered" in response.json()["detail"]
 
 
 def test_content_upload_rejects_bytes_that_do_not_match_signed_hash(client):

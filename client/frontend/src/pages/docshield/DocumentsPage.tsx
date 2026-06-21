@@ -207,6 +207,7 @@ export default function DocumentsPage() {
       let historyTipToStore = localHistoryTip;
       let backendSynced = false;
       let backendErrorMessage: string | null = null;
+      let shareLink = null;
 
       try {
         await api.setup({
@@ -224,6 +225,11 @@ export default function DocumentsPage() {
           initial_history: [initialEvent],
         });
         await api.uploadDocumentContent(documentId, selectedFile);
+        shareLink = await api.createShareLink(documentId, {
+          access_method: accessAnyoneWithLink ? "link" : accessMethod ?? "organization",
+          password_hash: accessPasswordHash,
+          expires_in_hours: 168,
+        });
         manifestHashToStore = response.manifest_hash;
         historyTipToStore = response.history_tip;
         backendSynced = true;
@@ -271,7 +277,13 @@ export default function DocumentsPage() {
           accessAnyoneWithLink,
           accessMethod,
           accessPasswordHash,
-          shareLink: null,
+          shareLink: shareLink
+            ? {
+                linkId: shareLink.link_id,
+                token: shareLink.token,
+                expiresAt: shareLink.expires_at,
+              }
+            : null,
         },
       });
       setSignedDocument({
@@ -284,8 +296,8 @@ export default function DocumentsPage() {
       setAccessPasswordConfirm("");
       setAccessMode("organization");
       if (backendSynced) {
-        toast.success("Document signed", {
-          description: `${selectedFile.name} is now ready to download.`,
+        toast.success("Secure document ready", {
+          description: `${selectedFile.name} now has an encrypted passport and secure link.`,
         });
       } else {
         toast.message("Saved locally", {
@@ -455,7 +467,7 @@ export default function DocumentsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Signed file ready</CardTitle>
-              <CardDescription>{signedDocument.fileName} is ready for the private download page.</CardDescription>
+              <CardDescription>{signedDocument.fileName} is protected and its secure link is ready.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">

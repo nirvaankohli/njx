@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
 from app.models.dto import UsageContext, VerifyRequest, VerifyResult
+from app.services.embedded_document_service import extract_encrypted_passport
 from app.services.verification_service import verify_passport, verify_registered_fingerprint
 
 
@@ -32,14 +33,22 @@ async def verify_file(
         raise HTTPException(status_code=413, detail="File exceeds the 25 MB upload limit")
 
     hasher = hashlib.sha256()
+    content = bytearray()
     bytes_read = 0
     async for chunk in request.stream():
         bytes_read += len(chunk)
         if bytes_read > MAX_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="File exceeds the 25 MB upload limit")
         hasher.update(chunk)
+        content.extend(chunk)
     if bytes_read == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    embedded = extract_encrypted_passport(bytes(content))
+    if embedded is not None:
+        _, embedded_request = embedded
+        embedded_request.usage_context = UsageContext(operation=operation, app=app)
+        return verify_passport(db, embedded_request)
 
     fingerprint = f"sha256:{hasher.hexdigest()}"
     return verify_registered_fingerprint(
